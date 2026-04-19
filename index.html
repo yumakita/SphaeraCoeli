@@ -232,6 +232,8 @@
     letter-spacing: 0.05em;
     transition: all 0.2s;
     font-family: 'Courier New', monospace;
+    -webkit-appearance: none;
+    appearance: none;
   }
   button.ctrl-btn:hover { border-color: #fff; color: #fff; }
   #speed-val { min-width: 52px; color: var(--text); font-family: 'Courier New', monospace; font-size: 13px; }
@@ -303,6 +305,8 @@
     letter-spacing: 0.03em;
     transition: all 0.15s;
     font-family: 'Courier New', monospace;
+    -webkit-appearance: none;
+    appearance: none;
   }
   .asp-btn::before {
     content: '';
@@ -348,6 +352,8 @@
     cursor: pointer;
     letter-spacing: 0.08em;
     transition: all 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
   }
   .tl-zoom.active {
     color: var(--text);
@@ -417,6 +423,8 @@
         <span class="csel-label" id="lbl-speed">1h/s</span>
         <div class="csel-dropdown" id="dd-speed"></div>
       </div>
+      <button class="ctrl-btn" id="pause-btn" onclick="togglePause()">⏸</button>
+      <button class="ctrl-btn" onclick="resetToNow()">Now</button>
     </div>
     <div class="ctrl-group">
       <button class="ctrl-btn" id="natal-toggle" onclick="toggleNatal()" style="border-color:#3a64a8;color:#6a9acc">Natal</button>
@@ -446,10 +454,6 @@
           <div class="csel-dropdown" id="dd-natal-min"></div>
         </div>
       </div>
-    </div>
-    <div class="ctrl-group">
-      <button class="ctrl-btn" id="pause-btn" onclick="togglePause()">⏸</button>
-      <button class="ctrl-btn" onclick="resetToNow()">Now</button>
     </div>
   </div>
 </header>
@@ -1375,9 +1379,10 @@ function draw() {
     const isRelated = hoveredIdx < 0 || relatedSet.has(i);
     const dimmed    = hoveredIdx >= 0 && !isRelated;
     const natalFade = majorTransits ? p.transitWeight : 1.0;
+    const natalOnlyFade = (showNatal && natalOnly) ? 0.15 : 1.0;
     const baseSize  = (p.r + 4) * 3;
     const fontSize  = isHovered ? baseSize * 1.35 : baseSize;
-    const dimAlpha  = (dimmed ? 0.08 : 1.0) * natalFade;
+    const dimAlpha  = (dimmed ? 0.08 : 1.0) * natalFade * natalOnlyFade;
 
     // Tick line
     const tx = CX + R_SIGN_IN * Math.cos(ang);
@@ -1634,6 +1639,10 @@ function togglePause() {
 function resetToNow() {
   simMs = Date.now();
   lastRealMs = Date.now();
+  if (!paused) {
+    paused = true;
+    document.getElementById('pause-btn').textContent = '▶';
+  }
   requestRedraw();
 }
 
