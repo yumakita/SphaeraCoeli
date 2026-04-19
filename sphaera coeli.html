@@ -1,0 +1,1878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Astrological Calendar — Live Planetary Wheel</title>
+<style>
+  :root {
+    --bg: #080807;
+    --bg2: #111110;
+    --ring: #2a2825;
+    --text: #d4d0c8;
+    --muted: #6e6a60;
+    --gold: #c8941a;
+    --border: rgba(255,255,255,0.08);
+    color-scheme: dark;
+  }
+  body.light {
+    --bg: #f5f3ee;
+    --bg2: #ede9e0;
+    --ring: #ddd8cc;
+    --text: #2c2820;
+    --muted: #8a8478;
+    --gold: #b07a10;
+    --border: rgba(0,0,0,0.1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Georgia', 'Times New Roman', serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  header {
+    width: 100%;
+    padding: 4px 20px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: center;
+  }
+  #timeline-wrap {
+    width: 100%;
+    max-width: 640px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 0;
+  }
+  header h1 {
+    font-size: 18px;
+    font-weight: normal;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+  #time-display {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .date-sep { color: var(--muted); font-family: 'Courier New', monospace; font-size: 14px; }
+  .csel {
+    position: relative;
+    display: inline-block;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: border-color 0.15s;
+    user-select: none;
+  }
+  .csel:hover { border-bottom-color: #6e6a60; }
+  .csel-label {
+    font-family: 'Courier New', monospace;
+    font-size: 20px;
+    color: var(--text);
+    padding: 2px 4px;
+    display: block;
+  }
+  #csel-year  { min-width: 48px; text-align: center; }
+  #csel-month { min-width: 38px; text-align: center; }
+  #csel-day   { min-width: 26px; text-align: center; }
+  .csel-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #050504;
+    border: 1px solid #3a3835;
+    border-radius: 6px;
+    overflow-y: auto;
+    max-height: 400px;
+    z-index: 999;
+    min-width: 60px;
+    display: none;
+    scrollbar-width: thin;
+    scrollbar-color: #3a3835 transparent;
+  }
+  .csel-dropdown::-webkit-scrollbar { width: 4px; }
+  .csel-dropdown::-webkit-scrollbar-thumb { background: #3a3835; border-radius: 2px; }
+  .csel-dropdown.open { display: block; }
+  .csel-option {
+    font-family: 'Courier New', monospace;
+    font-size: 20px;
+    color: #9a9893;
+    padding: 7px 16px;
+    cursor: pointer;
+    text-align: center;
+    white-space: nowrap;
+    transition: background 0.1s, color 0.1s;
+  }
+  .csel-option:hover { background: #2a2825; color: #d4d0c8; }
+  .csel-option.active { color: #d4d0c8; background: #222120; }
+  #theme-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  #theme-btn:hover { color: var(--text); border-color: var(--muted); }
+
+  main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 32px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  #canvas-wrap {
+    position: relative;
+    width: min(700px, 96vw);
+    height: min(700px, 96vw);
+  }
+  canvas { display: block; width: 700px; height: 700px; max-width: 96vw; max-height: 96vw; }
+
+  #tooltip {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(ellipse at center, rgba(5,5,4,0.95) 15%, rgba(5,5,4,0.7) 45%, rgba(5,5,4,0.15) 70%, transparent 100%);
+    border: none;
+    padding: 0;
+    font-size: 15px;
+    line-height: 1.8;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.25s;
+    z-index: 100;
+    text-align: center;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 40px;
+    font-family: 'Georgia', 'Times New Roman', serif;
+  }
+  @keyframes symglow {
+    0%,100% { filter: drop-shadow(0 0 3px currentColor); }
+    50%      { filter: drop-shadow(0 0 9px currentColor) drop-shadow(0 0 3px currentColor); }
+  }
+  #tooltip .t-name { font-weight: bold; color: var(--text); font-size: 16px; display: block; }
+  #tooltip .t-pos { color: var(--muted); font-size: 13px; display: block; }
+  #tooltip .t-asp { font-size: 11px; margin-top: 6px; display: block; line-height: 1.6; }
+
+  #controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    justify-content: center;
+    align-items: center;
+    margin-top: 8px;
+    padding: 8px 20px;
+    background: none;
+    border: none;
+    font-size: 15px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    font-family: 'Courier New', monospace;
+  }
+  .ctrl-group { display: flex; align-items: center; gap: 8px; }
+  .ctrl-label { text-transform: uppercase; font-size: 10px; letter-spacing: 0.1em; font-family: 'Courier New', monospace; }
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100px;
+    height: 3px;
+    background: var(--ring);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #6e6a60;
+    cursor: pointer;
+  }
+  .speed-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 10px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: all 0.15s;
+  }
+  button.ctrl-btn {
+    background: #080807;
+    border: 1px solid rgba(255,255,255,0.5);
+    color: #d4d0c8;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+    font-family: 'Courier New', monospace;
+  }
+  button.ctrl-btn:hover { border-color: #fff; color: #fff; }
+  #speed-val { min-width: 52px; color: var(--text); font-family: 'Courier New', monospace; font-size: 13px; }
+
+  #planet-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    justify-content: center;
+    padding-top: 40px;
+    margin-top: 16px;
+    max-width: 640px;
+    min-height: 72px;
+    align-content: flex-start;
+  }
+  .pi {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 14px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    cursor: default;
+    transition: background 0.15s;
+    background: none;
+    width: 168px;
+    white-space: nowrap;
+    overflow: hidden;
+    font-variant-numeric: tabular-nums;
+  }
+  .pi:hover { background: var(--ring); }
+  .pi .psym { font-size: 16px; font-family: 'Segoe UI Symbol', 'Apple Symbols', 'DejaVu Sans', sans-serif; line-height: 1; }
+  #tooltip .t-sym { font-size: 40px; display: block; margin-bottom: 6px; font-family: 'Segoe UI Symbol', 'Apple Symbols', 'DejaVu Sans', sans-serif; line-height: 1; animation: symglow 2.4s ease-in-out infinite; }
+  .pi .pname { color: var(--text); }
+  .pi .ppos { color: var(--muted); }
+
+  #aspects-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    justify-content: center;
+    margin-top: 12px;
+    padding: 12px 20px;
+    background: none;
+    border-radius: 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    max-width: 640px;
+    width: 100%;
+  }
+  .asp-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-right: 4px;
+  }
+  .asp-divider { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+  .asp-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    transition: all 0.15s;
+    font-family: 'Courier New', monospace;
+  }
+  .asp-btn::before {
+    content: '';
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--ac, var(--muted));
+    margin-right: 5px;
+    vertical-align: middle;
+    opacity: 0.4;
+    transition: opacity 0.15s;
+  }
+  #asp-all::before { display: none; }
+  .asp-btn.active { color: var(--text); border-color: var(--ac, var(--muted)); }
+  .asp-btn.active::before { opacity: 1; }
+
+  footer {
+    padding: 28px 20px 36px;
+    font-size: 14px;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 0.05em;
+    line-height: 1.8;
+    font-family: 'Courier New', monospace;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+
+  #tl-zoom-btns {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+  }
+  .tl-zoom {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    padding: 4px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    letter-spacing: 0.08em;
+    transition: all 0.15s;
+  }
+  .tl-zoom.active {
+    color: var(--text);
+    border-color: #6e6a60;
+  }
+  #timeline-track {
+    position: relative;
+    height: 40px;
+    cursor: grab;
+    user-select: none;
+  }
+  #timeline-track:active { cursor: grabbing; }
+  #timeline-canvas { display: block; width: 100%; height: 40px; }
+  #timeline-needle {
+    position: absolute;
+    top: 4px; bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    background: var(--gold);
+    border-radius: 1px;
+    pointer-events: none;
+  }
+  #timeline-needle::before {
+    content: '';
+    position: absolute;
+    top: -4px; left: 50%;
+    transform: translateX(-50%);
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--gold);
+  }
+    margin-top: auto;
+    padding: 20px;
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div id="controls">
+    <div id="time-display">
+      <div class="csel" id="csel-year">
+        <span class="csel-label" id="lbl-year">—</span>
+        <div class="csel-dropdown" id="dd-year"></div>
+      </div>
+      <span class="date-sep">—</span>
+      <div class="csel" id="csel-month">
+        <span class="csel-label" id="lbl-month">—</span>
+        <div class="csel-dropdown" id="dd-month"></div>
+      </div>
+      <span class="date-sep">—</span>
+      <div class="csel" id="csel-day">
+        <span class="csel-label" id="lbl-day">—</span>
+        <div class="csel-dropdown" id="dd-day"></div>
+      </div>
+      <span class="date-sep" style="margin-left:8px"></span>
+      <span id="time-utc" style="font-family:'Courier New',monospace;font-size:13px;color:var(--muted);letter-spacing:0.05em">00:00</span>
+    </div>
+    <div class="ctrl-group">
+      <span class="ctrl-label">Speed</span>
+      <div class="csel" id="csel-speed">
+        <span class="csel-label" id="lbl-speed">1h/s</span>
+        <div class="csel-dropdown" id="dd-speed"></div>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <button class="ctrl-btn" id="natal-toggle" onclick="toggleNatal()" style="border-color:#3a64a8;color:#6a9acc">Natal</button>
+      <div id="natal-date" style="display:flex;align-items:center;gap:4px;opacity:0.4;pointer-events:none">
+        <div class="csel" id="csel-natal-year" style="border-bottom-color:#3a64a8">
+          <span class="csel-label" id="lbl-natal-year" style="color:#6a9acc">—</span>
+          <div class="csel-dropdown" id="dd-natal-year"></div>
+        </div>
+        <span class="date-sep" style="color:#3a64a8">—</span>
+        <div class="csel" id="csel-natal-month" style="border-bottom-color:#3a64a8">
+          <span class="csel-label" id="lbl-natal-month" style="color:#6a9acc">—</span>
+          <div class="csel-dropdown" id="dd-natal-month"></div>
+        </div>
+        <span class="date-sep" style="color:#3a64a8">—</span>
+        <div class="csel" id="csel-natal-day" style="border-bottom-color:#3a64a8">
+          <span class="csel-label" id="lbl-natal-day" style="color:#6a9acc">—</span>
+          <div class="csel-dropdown" id="dd-natal-day"></div>
+        </div>
+        <span class="date-sep" style="color:#3a64a8;margin-left:4px">—</span>
+        <div class="csel" id="csel-natal-hour" style="border-bottom-color:#3a64a8">
+          <span class="csel-label" id="lbl-natal-hour" style="color:#6a9acc">—</span>
+          <div class="csel-dropdown" id="dd-natal-hour"></div>
+        </div>
+        <span class="date-sep" style="color:#3a64a8">:</span>
+        <div class="csel" id="csel-natal-min" style="border-bottom-color:#3a64a8">
+          <span class="csel-label" id="lbl-natal-min" style="color:#6a9acc">—</span>
+          <div class="csel-dropdown" id="dd-natal-min"></div>
+        </div>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <button class="ctrl-btn" id="pause-btn" onclick="togglePause()">⏸</button>
+      <button class="ctrl-btn" onclick="resetToNow()">Now</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="canvas-wrap">
+    <canvas id="wheel"></canvas>
+    <div id="tooltip"></div>
+  </div>
+
+  <div id="timeline-wrap">
+    <div id="tl-zoom-btns">
+      <button class="tl-zoom"        id="tl-years"  onclick="setTlZoom('years')">Y</button>
+      <button class="tl-zoom active"  id="tl-months" onclick="setTlZoom('months')">M</button>
+      <button class="tl-zoom"        id="tl-days"   onclick="setTlZoom('days')">D</button>
+    </div>
+    <div id="timeline-track">
+      <canvas id="timeline-canvas" height="40"></canvas>
+      <div id="timeline-needle"></div>
+    </div>
+  </div>
+
+  <div id="aspects-bar">
+    <span class="asp-label">Aspects</span>
+    <button class="asp-btn active" id="asp-all" onclick="toggleAllAspects()">All</button>
+    <button class="asp-btn" id="asp-natal-only" onclick="toggleNatalOnly()" style="--ac:#3a64a8">Natal only</button>
+    <button class="asp-btn" id="asp-major-transits" onclick="toggleMajorTransits()" style="--ac:#6aaab0">Major transits</button>
+    <div class="asp-divider"></div>
+    <button class="asp-btn active" id="asp-Conjunction" onclick="toggleAspect('Conjunction')" style="--ac:#3a64a8">Conjunction</button>
+    <button class="asp-btn active" id="asp-Opposition"  onclick="toggleAspect('Opposition')"  style="--ac:#c04828">Opposition</button>
+    <button class="asp-btn active" id="asp-Trine"       onclick="toggleAspect('Trine')"       style="--ac:#3a88b0">Trine</button>
+    <button class="asp-btn active" id="asp-Square"      onclick="toggleAspect('Square')"      style="--ac:#c87820">Square</button>
+    <button class="asp-btn active" id="asp-Sextile"     onclick="toggleAspect('Sextile')"     style="--ac:#5a7a3a">Sextile</button>
+    <div class="asp-divider"></div>
+    <button class="asp-btn" id="asp-chiron" onclick="toggleChiron()" style="--ac:#7a9a70">Chiron</button>
+  </div>
+
+
+
+</main>
+
+<footer><span id="ephem-status" style="opacity:0.5;font-size:12px">Positions: Keplerian with Meeus lunar correction (~0.3° Moon accuracy)</span><br><br>Planetary positions computed from J2000 Keplerian elements — approximate, for contemplative use.<br><br>Geocentric, as per Western tropical astrology. Vedic (Jyotish) uses the same model with a sidereal shift of ~23–24° (the ayanamsha) for precession. Kepler (1571–1630) proved orbits are ellipses, not circles, from Tycho Brahe's naked-eye observations — a break from two millennia of circular astronomy. J2000 elements are accurate to within ~1° for outer planets over short spans, but degrade significantly beyond ±200 years from the present. The Moon is least accurate throughout. For precision work, use the Swiss Ephemeris.</footer>
+
+<script>
+// ── Astronomical constants & planet data ─────────────────────────────────────
+const J2000_JD = 2451545.0;
+const DEG = Math.PI / 180;
+
+const PLANETS = [
+  { name:'Sun',     sym:'☉', col:'#d4900c', r:9,  L0:280.46,  n:0.9856474,  ω:102.94,  e:0.01671, a:1.000,  transitWeight:0.15 },
+  { name:'Moon',    sym:'☽', col:'#b0aca4', r:6,  L0:218.316, n:13.176396,  ω:318.15,  e:0.05490, a:0.00257,transitWeight:0.05 },
+  { name:'Mercury', sym:'☿', col:'#9e7a58', r:5,  L0:252.251, n:4.09233,    ω:77.456,  e:0.20563, a:0.3871, transitWeight:0.15 },
+  { name:'Venus',   sym:'♀', col:'#d4a840', r:6,  L0:181.980, n:1.60213,    ω:131.564, e:0.00677, a:0.7233, transitWeight:0.20 },
+  { name:'Mars',    sym:'♂', col:'#b83a22', r:6,  L0:355.433, n:0.52402,    ω:336.041, e:0.09341, a:1.5237, transitWeight:0.35 },
+  { name:'Jupiter', sym:'♃', col:'#a07038', r:7,  L0:34.396,  n:0.08309,    ω:14.728,  e:0.04839, a:5.2029, transitWeight:0.70 },
+  { name:'Saturn',  sym:'♄', col:'#8e7d56', r:7,  L0:49.944,  n:0.03350,    ω:92.598,  e:0.05415, a:9.5367, transitWeight:0.85 },
+  { name:'Uranus',  sym:'♅', col:'#6aaab0', r:6,  L0:313.232, n:0.01172,    ω:170.964, e:0.04726, a:19.191, transitWeight:0.95 },
+  { name:'Neptune', sym:'♆', col:'#3a64a8', r:6,  L0:304.880, n:0.00598,    ω:44.971,  e:0.00859, a:30.069, transitWeight:1.00 },
+  { name:'Pluto',   sym:'♇', col:'#8a6070', r:5,  L0:238.929, n:0.00397,    ω:224.069, e:0.24882, a:39.481, transitWeight:1.00 },
+  { name:'Chiron',  sym:'⚷', col:'#7a9a70', r:5,  L0:216.38,  n:0.01942,    ω:188.88,  e:0.37623, a:13.711, transitWeight:0.90 },
+];
+
+const SIGNS = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpio','Sagittarius','Capricorn','Aquarius','Pisces'];
+const SIGN_GLYPHS = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓']; // fallback only
+const SIGN_COLS = ['#b83a22','#7a5e2a','#4a6e2a','#2a6890','#c08010','#5a7a4a','#2a7898','#7a2a40','#6a4820','#485878','#2a7898','#484880'];
+const ELEMENT_COLS = { fire:'#c04828', earth:'#7a6030', air:'#4878a0', water:'#304880' };
+const ELEMENTS = ['fire','earth','air','water','fire','earth','air','water','fire','earth','air','water'];
+
+// Draw each zodiac sign as clean canvas paths, centred on (0,0), size ~s
+const SIGN_DRAW = [
+  // 0 Aries — two horns curving outward from a central point
+  (c,s) => {
+    c.beginPath(); c.moveTo(0, s*0.5); c.lineTo(0, -s*0.2);
+    c.moveTo(0, -s*0.2); c.bezierCurveTo(-s*0.1,-s*0.8,-s*0.7,-s*0.8,-s*0.6,-s*0.2);
+    c.moveTo(0, -s*0.2); c.bezierCurveTo(s*0.1,-s*0.8,s*0.7,-s*0.8,s*0.6,-s*0.2);
+    c.stroke();
+  },
+  // 1 Taurus — circle with horns on top
+  (c,s) => {
+    c.beginPath(); c.arc(0, s*0.15, s*0.45, 0, Math.PI*2); c.stroke();
+    c.beginPath();
+    c.moveTo(-s*0.45, -s*0.28);
+    c.bezierCurveTo(-s*0.45,-s*0.85,-s*0.15,-s*0.9,0,-s*0.9);
+    c.bezierCurveTo(s*0.15,-s*0.9,s*0.45,-s*0.85,s*0.45,-s*0.28);
+    c.stroke();
+  },
+  // 2 Gemini — two vertical pillars with top and bottom bars
+  (c,s) => {
+    c.beginPath();
+    c.moveTo(-s*0.35,-s*0.7); c.lineTo(s*0.35,-s*0.7);
+    c.moveTo(-s*0.35,s*0.7); c.lineTo(s*0.35,s*0.7);
+    c.moveTo(-s*0.35,-s*0.6); c.lineTo(-s*0.35,s*0.6);
+    c.moveTo(s*0.35,-s*0.6); c.lineTo(s*0.35,s*0.6);
+    c.stroke();
+  },
+  // 3 Cancer — two interlocked spirals (69)
+  (c,s) => {
+    c.beginPath(); c.arc(-s*0.1,-s*0.28,s*0.32,0,Math.PI*2); c.stroke();
+    c.beginPath(); c.arc(s*0.1,s*0.28,s*0.32,0,Math.PI*2); c.stroke();
+    c.beginPath();
+    c.moveTo(s*0.22,-s*0.28); c.lineTo(s*0.5,-s*0.28);
+    c.moveTo(-s*0.22,s*0.28); c.lineTo(-s*0.5,s*0.28);
+    c.stroke();
+  },
+  // 4 Leo — circle with a tail curling up and over
+  (c,s) => {
+    c.beginPath(); c.arc(0, s*0.2, s*0.38, 0, Math.PI*2); c.stroke();
+    c.beginPath();
+    c.moveTo(s*0.38, s*0.2);
+    c.bezierCurveTo(s*0.75,s*0.2,s*0.75,-s*0.5,s*0.2,-s*0.55);
+    c.bezierCurveTo(-s*0.1,-s*0.6,-s*0.15,-s*0.4,s*0.05,-s*0.35);
+    c.stroke();
+  },
+  // 5 Virgo — m with a curved tail looping inward on last stroke
+  (c,s) => {
+    c.beginPath();
+    c.moveTo(-s*0.55,-s*0.1);
+    c.bezierCurveTo(-s*0.55,-s*0.7,-s*0.15,-s*0.7,-s*0.15,-s*0.1);
+    c.lineTo(-s*0.15,s*0.6);
+    c.moveTo(-s*0.15,-s*0.1);
+    c.bezierCurveTo(-s*0.15,-s*0.7,s*0.25,-s*0.7,s*0.25,-s*0.1);
+    c.lineTo(s*0.25,s*0.6);
+    c.moveTo(s*0.25,-s*0.1);
+    c.bezierCurveTo(s*0.25,-s*0.7,s*0.65,-s*0.7,s*0.65,-s*0.1);
+    c.bezierCurveTo(s*0.65,s*0.4,s*0.1,s*0.7,s*0.1,s*0.6);
+    c.bezierCurveTo(s*0.1,s*0.5,s*0.4,s*0.4,s*0.4,s*0.15);
+    c.stroke();
+  },
+  // 6 Libra — horizontal line with a bump/arch above and line below
+  (c,s) => {
+    c.beginPath();
+    c.moveTo(-s*0.55,s*0.05); c.lineTo(s*0.55,s*0.05);
+    c.moveTo(-s*0.55,s*0.45); c.lineTo(s*0.55,s*0.45);
+    c.moveTo(-s*0.38,s*0.05);
+    c.bezierCurveTo(-s*0.38,-s*0.55,s*0.38,-s*0.55,s*0.38,s*0.05);
+    c.stroke();
+  },
+  // 7 Scorpio — m with a downward arrow tail
+  (c,s) => {
+    c.beginPath();
+    c.moveTo(-s*0.55,-s*0.1);
+    c.bezierCurveTo(-s*0.55,-s*0.7,-s*0.15,-s*0.7,-s*0.15,-s*0.1);
+    c.lineTo(-s*0.15,s*0.5);
+    c.moveTo(-s*0.15,-s*0.1);
+    c.bezierCurveTo(-s*0.15,-s*0.7,s*0.25,-s*0.7,s*0.25,-s*0.1);
+    c.lineTo(s*0.25,s*0.5);
+    c.moveTo(s*0.25,-s*0.1);
+    c.bezierCurveTo(s*0.25,-s*0.7,s*0.65,-s*0.7,s*0.65,-s*0.1);
+    c.lineTo(s*0.65,s*0.3);
+    c.lineTo(s*0.85,s*0.55);
+    c.moveTo(s*0.65,s*0.55); c.lineTo(s*0.85,s*0.55); c.lineTo(s*0.75,s*0.35);
+    c.stroke();
+  },
+  // 8 Sagittarius — diagonal arrow pointing upper-right
+  (c,s) => {
+    c.beginPath();
+    c.moveTo(-s*0.55,s*0.55); c.lineTo(s*0.55,-s*0.55);
+    c.moveTo(s*0.55,-s*0.55); c.lineTo(s*0.1,-s*0.55);
+    c.moveTo(s*0.55,-s*0.55); c.lineTo(s*0.55,-s*0.1);
+    c.moveTo(-s*0.3,s*0.0); c.lineTo(s*0.0,-s*0.3);
+    c.stroke();
+  },
+  // 9 Capricorn — v shape with a loop on the right leg
+  (c,s) => {
+    c.beginPath();
+    c.moveTo(-s*0.55,-s*0.55);
+    c.lineTo(-s*0.1,s*0.3);
+    c.bezierCurveTo(s*0.1,s*0.75,s*0.65,s*0.75,s*0.65,s*0.2);
+    c.bezierCurveTo(s*0.65,-s*0.2,s*0.2,-s*0.35,-s*0.05,-s*0.1);
+    c.bezierCurveTo(-s*0.3,s*0.15,-s*0.15,s*0.55,s*0.25,s*0.55);
+    c.stroke();
+  },
+  // 10 Aquarius — two wavy horizontal lines
+  (c,s) => {
+    const wave = (y) => {
+      c.beginPath();
+      c.moveTo(-s*0.6,y);
+      c.bezierCurveTo(-s*0.3,y-s*0.25,s*0.0,y+s*0.25,s*0.3,y);
+      c.bezierCurveTo(s*0.45,y-s*0.15,s*0.55,y-s*0.05,s*0.6,y);
+      c.stroke();
+    };
+    wave(-s*0.2); wave(s*0.2);
+  },
+  // 11 Pisces — two arcs facing away, joined by a horizontal bar
+  (c,s) => {
+    c.beginPath();
+    c.moveTo(-s*0.5,0); c.lineTo(s*0.5,0);
+    c.moveTo(-s*0.15,-s*0.65);
+    c.bezierCurveTo(-s*0.65,-s*0.65,-s*0.65,s*0.65,-s*0.15,s*0.65);
+    c.moveTo(s*0.15,-s*0.65);
+    c.bezierCurveTo(s*0.65,-s*0.65,s*0.65,s*0.65,s*0.15,s*0.65);
+    c.stroke();
+  },
+];
+
+const ASPECTS = [
+  { name:'Conjunction', angle:0,   orb:8, col:'#3a64a8', dash:[] },
+  { name:'Opposition',  angle:180, orb:8, col:'#c04828', dash:[] },
+  { name:'Trine',       angle:120, orb:6, col:'#3a88b0', dash:[4,4] },
+  { name:'Square',      angle:90,  orb:6, col:'#c87820', dash:[2,4] },
+  { name:'Sextile',     angle:60,  orb:5, col:'#5a7a3a', dash:[3,6] },
+];
+
+// Planet symbol SVG paths (viewBox 0 0 20 20, centred on 10,10)
+const PLANET_SVG = {
+  Sun:     `<circle cx="10" cy="10" r="4" fill="none" stroke="COL" stroke-width="1.5"/><circle cx="10" cy="10" r="1.2" fill="COL"/>`,
+  Moon:    `<path d="M13,10 A5,5 0 1,1 13,10.01 A3.5,3.5 0 1,0 13,10Z" fill="COL"/>`,
+  Mercury: `<circle cx="10" cy="8" r="4" fill="none" stroke="COL" stroke-width="1.5"/><line x1="10" y1="12" x2="10" y2="17" stroke="COL" stroke-width="1.5"/><line x1="7" y1="14.5" x2="13" y2="14.5" stroke="COL" stroke-width="1.5"/><path d="M7,5 Q10,2 13,5" fill="none" stroke="COL" stroke-width="1.5" stroke-linecap="round"/>`,
+  Venus:   `<circle cx="10" cy="8" r="4.5" fill="none" stroke="COL" stroke-width="1.5"/><line x1="10" y1="12.5" x2="10" y2="17" stroke="COL" stroke-width="1.5"/><line x1="7.5" y1="15" x2="12.5" y2="15" stroke="COL" stroke-width="1.5"/>`,
+  Mars:    `<circle cx="9" cy="11" r="4" fill="none" stroke="COL" stroke-width="1.5"/><line x1="12.5" y1="7.5" x2="16" y2="4" stroke="COL" stroke-width="1.5"/><polyline points="13,4 16,4 16,7" fill="none" stroke="COL" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`,
+  Jupiter: `<path d="M13,4 C8,4 6,7 6,10 C6,13 8,14 11,14" fill="none" stroke="COL" stroke-width="1.5" stroke-linecap="round"/><line x1="5" y1="10" x2="15" y2="10" stroke="COL" stroke-width="1.5"/><line x1="11" y1="7" x2="11" y2="17" stroke="COL" stroke-width="1.5"/>`,
+  Saturn:  `<line x1="10" y1="5" x2="10" y2="16" stroke="COL" stroke-width="1.5"/><path d="M6,9 C6,9 8,7 10,9 C12,11 14,9 14,9" fill="none" stroke="COL" stroke-width="1.5" stroke-linecap="round"/><line x1="7" y1="5" x2="13" y2="5" stroke="COL" stroke-width="1.5"/>`,
+  Uranus:  `<circle cx="10" cy="13" r="3.5" fill="none" stroke="COL" stroke-width="1.5"/><line x1="10" y1="4" x2="10" y2="9.5" stroke="COL" stroke-width="1.5"/><line x1="6" y1="7" x2="10" y2="4" stroke="COL" stroke-width="1.5" stroke-linecap="round"/><line x1="14" y1="7" x2="10" y2="4" stroke="COL" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="4" r="1.2" fill="COL"/>`,
+  Neptune: `<line x1="10" y1="5" x2="10" y2="17" stroke="COL" stroke-width="1.5"/><line x1="6" y1="14" x2="14" y2="14" stroke="COL" stroke-width="1.5"/><path d="M5,8 C5,4 15,4 15,8 C15,12 10,14 10,14 C10,14 5,12 5,8Z" fill="none" stroke="COL" stroke-width="1.5"/>`,
+  Pluto:   `<circle cx="10" cy="7" r="3.5" fill="none" stroke="COL" stroke-width="1.5"/><line x1="10" y1="10.5" x2="10" y2="16" stroke="COL" stroke-width="1.5"/><line x1="7" y1="13" x2="13" y2="13" stroke="COL" stroke-width="1.5"/><path d="M7,4 Q10,1 13,4" fill="none" stroke="COL" stroke-width="1.5" stroke-linecap="round"/>`,
+};
+
+function planetSVG(name, col, size) {
+  const paths = (PLANET_SVG[name] || '').replace(/COL/g, col);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
+}
+
+function norm(x) { return ((x % 360) + 360) % 360; }
+function toRad(d) { return d * DEG; }
+function toDeg(r) { return r / DEG; }
+function jdFromMs(ms) { return J2000_JD + (ms - Date.UTC(2000,0,1,12)) / 86400000; }
+
+function solveKepler(M, e) {
+  let E = M;
+  for (let i = 0; i < 60; i++) {
+    const dE = (M - E + e * Math.sin(E)) / (1 - e * Math.cos(E));
+    E += dE;
+    if (Math.abs(dE) < 1e-7) break;
+  }
+  return E;
+}
+
+// Earth's orbital elements (for geocentric conversion)
+const EARTH = { L0:100.46457, n:0.98564736, ω:102.93768, e:0.01671123, a:1.0 };
+
+function helioXY(p, D) {
+  const M = toRad(norm(p.L0 + p.n * D - p.ω));
+  const E = solveKepler(M, p.e);
+  const v = 2 * Math.atan2(Math.sqrt(1 + p.e) * Math.sin(E / 2), Math.sqrt(1 - p.e) * Math.cos(E / 2));
+  const r = p.a * (1 - p.e * Math.cos(E));
+  return { x: r * Math.cos(v + toRad(p.ω)), y: r * Math.sin(v + toRad(p.ω)) };
+}
+
+function geocentricLon(p, D) {
+  if (p.name === 'Moon') {
+    const M = toRad(norm(p.L0 + p.n * D - p.ω));
+    const E = solveKepler(M, p.e);
+    const v = 2 * Math.atan2(Math.sqrt(1 + p.e) * Math.sin(E / 2), Math.sqrt(1 - p.e) * Math.cos(E / 2));
+    return norm(toDeg(v) + p.ω);
+  }
+  if (p.name === 'Sun') {
+    const e = helioXY(EARTH, D);
+    return norm(toDeg(Math.atan2(e.y, e.x)) + 180);
+  }
+  const planet = helioXY(p, D);
+  const earth  = helioXY(EARTH, D);
+  const dx = planet.x - earth.x;
+  const dy = planet.y - earth.y;
+  return norm(toDeg(Math.atan2(dy, dx)));
+}
+
+// ── Jean Meeus lunar correction (Astronomical Algorithms ch.47) ──────────────
+// Improves Moon accuracy from ~5° to ~0.3° with no external dependencies
+function moonLonMeeus(ms) {
+  const T = (jdFromMs(ms) - 2451545.0) / 36525.0;
+  const T2 = T * T, T3 = T2 * T, T4 = T3 * T;
+
+  // Moon's mean longitude
+  let L0 = 218.3164477 + 481267.88123421*T - 0.0015786*T2 + T3/538841 - T4/65194000;
+  // Mean elongation
+  let D  = 297.8501921 + 445267.1114034*T - 0.0018819*T2 + T3/545868 - T4/113065000;
+  // Sun's mean anomaly
+  let M  = 357.5291092 + 35999.0502909*T  - 0.0001536*T2 + T3/24490000;
+  // Moon's mean anomaly
+  let Mp = 134.9633964 + 477198.8675055*T + 0.0087414*T2 + T3/69699 - T4/14712000;
+  // Moon's argument of latitude
+  let F  = 93.2720950  + 483202.0175233*T - 0.0036539*T2 - T3/3526000 + T4/863310000;
+
+  D=toRad(norm(D)); M=toRad(norm(M)); Mp=toRad(norm(Mp)); F=toRad(norm(F));
+
+  // Σl — sum of periodic terms (degrees × 10^-6)
+  let sl = 0;
+  const terms = [
+    [0,0,1,0,6288774],   [2,0,-1,0,1274027],  [2,0,0,0,658314],
+    [0,0,2,0,213618],    [0,1,0,0,-185116],    [0,0,0,2,-114332],
+    [2,0,-2,0,58793],    [2,-1,-1,0,57066],    [2,0,1,0,53322],
+    [2,-1,0,0,45758],    [0,1,-1,0,-40923],    [1,0,0,0,-34720],
+    [0,1,1,0,-30383],    [2,0,0,-2,15327],     [0,0,1,2,-12528],
+    [0,0,1,-2,10980],    [4,0,-1,0,10675],     [0,0,3,0,10034],
+    [4,0,-2,0,8548],     [2,1,-1,0,-7888],     [2,1,0,0,-6766],
+    [1,0,-1,0,-5163],    [1,1,0,0,4987],       [2,-1,1,0,4036],
+    [2,0,2,0,3994],      [4,0,0,0,3861],       [2,0,-3,0,3665],
+    [0,1,-2,0,-2689],    [2,0,-1,2,-2602],     [2,-1,-2,0,2390],
+    [1,0,1,0,-2348],     [2,-2,0,0,2236],      [0,1,2,0,-2120],
+    [0,2,0,0,-2069],     [2,-2,-1,0,2048],     [2,0,1,-2,-1773],
+    [2,0,0,2,-1595],     [4,-1,-1,0,1215],     [0,0,2,2,-1110],
+    [3,0,-1,0,-892],     [2,1,1,0,-810],       [4,-1,-2,0,759],
+    [0,2,-1,0,-713],     [2,2,-1,0,-700],      [2,1,-2,0,691],
+    [2,-1,0,-2,596],     [4,0,1,0,549],        [0,0,4,0,537],
+    [4,-1,0,0,520],      [1,0,-2,0,-487],      [2,1,0,-2,-399],
+    [0,0,2,-2,-381],     [1,1,1,0,351],        [3,0,-2,0,-340],
+    [4,0,-3,0,330],      [2,-1,2,0,327],       [0,2,1,0,-323],
+    [1,1,-1,0,299],      [2,0,3,0,294],
+  ];
+  for (const [nd,nm,nmp,nf,coeff] of terms) {
+    sl += coeff * Math.sin(nd*D + nm*M + nmp*Mp + nf*F);
+  }
+
+  const lon = norm(L0 + sl / 1000000);
+  return lon;
+}
+
+function computeLons(ms) {
+  const D = jdFromMs(ms) - J2000_JD;
+  return PLANETS.map(p => {
+    if (p.name === 'Moon') return moonLonMeeus(ms);
+    return geocentricLon(p, D);
+  });
+}
+
+function signLabel(lon) {
+  const s = Math.floor(lon / 30);
+  const d = String(Math.floor(lon % 30)).padStart(2, '0');
+  const m = String(Math.floor((lon % 1) * 60)).padStart(2, '0');
+  return `${SIGNS[s]} ${d}°${m}'`;
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let simMs = Date.now();
+let lastRealMs = Date.now();
+let paused = false;
+let showAspects = true;
+let showNatal = false;
+let natalOnly = false;
+let majorTransits = false;
+let showChiron = false;
+let natalMs = Date.now();
+let cachedNatalLons = null;
+const aspectEnabled = { Conjunction: true, Opposition: true, Trine: true, Square: true, Sextile: true };
+
+// Initialise cached lons now that geocentricLon is defined
+cachedLons = computeLons(simMs);
+let planetPositions = [];
+let lightMode = false;
+let hoveredPlanet = null;
+
+// ── Timeline scrubber ─────────────────────────────────────────────────────────
+const tlCanvas  = document.getElementById('timeline-canvas');
+const tlCtx     = tlCanvas.getContext('2d');
+const TL_DPR    = window.devicePixelRatio || 1;
+let tlWidth     = 0;
+let tlDragging  = false;
+let tlDragStartX = 0;
+let tlDragStartMs = 0;
+let tlZoom = 'months'; // 'years' | 'months' | 'days'
+
+const TL_TICK_PX = 120; // every tick is 120px apart regardless of zoom
+
+const TL_ZOOM_CONFIG = {
+  years:  { msPerPx: (365.25 * 86400000) / TL_TICK_PX },
+  months: { msPerPx: (30.44  * 86400000) / TL_TICK_PX },
+  days:   { msPerPx: (        86400000)  / TL_TICK_PX },
+};
+
+function setTlZoom(z) {
+  tlZoom = z;
+  document.querySelectorAll('.tl-zoom').forEach(b => b.classList.remove('active'));
+  document.getElementById('tl-' + z).classList.add('active');
+}
+
+function resizeTimeline() {
+  const rect = tlCanvas.parentElement.getBoundingClientRect();
+  tlWidth = rect.width;
+  tlCanvas.width  = tlWidth * TL_DPR;
+  tlCanvas.height = 40 * TL_DPR;
+  tlCanvas.style.width  = tlWidth + 'px';
+  tlCanvas.style.height = '40px';
+  drawTimeline();
+}
+
+function drawTimeline() {
+  if (!tlWidth) return;
+  tlCtx.clearRect(0, 0, tlCanvas.width, tlCanvas.height);
+
+  const W = tlWidth;
+  const cx = W / 2;
+  const cfg = TL_ZOOM_CONFIG[tlZoom];
+  const msPerPx = cfg.msPerPx;
+  const textCol = '#b0ada6';
+  const midCol  = '#7a7870';
+  const subCol  = '#4a4844';
+
+  const leftMs  = simMs - cx * msPerPx;
+  const rightMs = simMs + cx * msPerPx;
+
+  tlCtx.save();
+  tlCtx.scale(TL_DPR, TL_DPR);
+
+  // Baseline — more visible
+  tlCtx.beginPath();
+  tlCtx.moveTo(0, 30); tlCtx.lineTo(W, 30);
+  tlCtx.strokeStyle = midCol + 'aa'; tlCtx.lineWidth = 1; tlCtx.stroke();
+
+  // Generate main ticks + sub-ticks
+  const ticks = [];
+  const subTicks = [];
+
+  if (tlZoom === 'years') {
+    const y0 = Math.floor(new Date(leftMs).getUTCFullYear()) - 1;
+    const y1 = Math.ceil(new Date(rightMs).getUTCFullYear()) + 1;
+    for (let y = y0; y <= y1; y++) {
+      const ms = Date.UTC(y, 0, 1);
+      const px = cx + (ms - simMs) / msPerPx;
+      const big = y % 10 === 0;
+      const mid = y % 5 === 0 && !big;
+      ticks.push({ px, big, mid, label: (big || mid) ? String(y) : null });
+      // Sub-ticks: quarterly (every 3 months)
+      for (let q = 1; q < 4; q++) {
+        const sms = Date.UTC(y, q * 3, 1);
+        const spx = cx + (sms - simMs) / msPerPx;
+        subTicks.push({ px: spx });
+      }
+    }
+  } else if (tlZoom === 'months') {
+    const d0 = new Date(leftMs);
+    let y = d0.getUTCFullYear(), m = d0.getUTCMonth() - 1;
+    if (m < 0) { m = 11; y--; }
+    while (Date.UTC(y, m, 1) <= rightMs + 30*86400000) {
+      const ms = Date.UTC(y, m, 1);
+      const px = cx + (ms - simMs) / msPerPx;
+      const big = m === 0;
+      const mid = m % 3 === 0 && !big;
+      const label = new Date(ms).toLocaleString('default',{month:'short',timeZone:'UTC'});
+      ticks.push({ px, big, mid, label });
+      // Sub-ticks: weekly (every 7 days)
+      for (let w = 7; w < 28; w += 7) {
+        const sms = Date.UTC(y, m, w);
+        const spx = cx + (sms - simMs) / msPerPx;
+        subTicks.push({ px: spx });
+      }
+      m++; if (m > 11) { m = 0; y++; }
+    }
+  } else {
+    const d0 = new Date(leftMs);
+    let cur = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate() - 1);
+    while (cur <= rightMs + 86400000) {
+      const px = cx + (cur - simMs) / msPerPx;
+      const d = new Date(cur);
+      const big = d.getUTCDate() === 1;
+      const mid = d.getUTCDay() === 0 && !big;
+      const label = big ? d.toLocaleString('default',{month:'short',timeZone:'UTC'}) : String(d.getUTCDate());
+      ticks.push({ px, big, mid, label });
+      // Sub-ticks: 6-hourly
+      for (let h = 6; h < 24; h += 6) {
+        const sms = cur + h * 3600000;
+        const spx = cx + (sms - simMs) / msPerPx;
+        subTicks.push({ px: spx });
+      }
+      cur += 86400000;
+    }
+  }
+
+  // Draw sub-ticks first (behind main ticks)
+  for (const t of subTicks) {
+    if (t.px < -2 || t.px > W + 2) continue;
+    tlCtx.beginPath();
+    tlCtx.moveTo(t.px, 30); tlCtx.lineTo(t.px, 26);
+    tlCtx.strokeStyle = subCol; tlCtx.lineWidth = 0.5; tlCtx.stroke();
+  }
+
+  // Draw main ticks
+  for (const t of ticks) {
+    if (t.px < -4 || t.px > W + 4) continue;
+    const tLen = t.big ? 16 : t.mid ? 10 : 6;
+    tlCtx.beginPath();
+    tlCtx.moveTo(t.px, 30); tlCtx.lineTo(t.px, 30 - tLen);
+    tlCtx.strokeStyle = t.big ? textCol : t.mid ? midCol : subCol + 'cc';
+    tlCtx.lineWidth   = t.big ? 1.5 : t.mid ? 1 : 0.7;
+    tlCtx.stroke();
+    if (t.label) {
+      tlCtx.font = `${t.big ? 12 : 10}px 'Courier New', monospace`;
+      tlCtx.fillStyle = t.big ? textCol : midCol;
+      tlCtx.textAlign = 'center';
+      tlCtx.textBaseline = 'bottom';
+      tlCtx.fillText(t.label, t.px, 30 - tLen - 2);
+    }
+  }
+
+  tlCtx.restore();
+}
+
+// Drag interactions
+let tlVelocity = 0;       // ms per real-ms (momentum)
+let tlLastX = 0;
+let tlLastTime = 0;
+let tlCoasting = false;
+
+tlCanvas.addEventListener('mousedown', e => {
+  tlDragging    = true;
+  tlCoasting    = false;
+  tlVelocity    = 0;
+  tlDragStartX  = e.clientX;
+  tlDragStartMs = simMs;
+  tlLastX       = e.clientX;
+  tlLastTime    = performance.now();
+  if (!paused) togglePause();
+});
+
+window.addEventListener('mousemove', e => {
+  if (!tlDragging) return;
+  const now = performance.now();
+  const dt  = now - tlLastTime;
+  const dx  = e.clientX - tlLastX;
+  if (dt > 0) tlVelocity = -(dx * TL_ZOOM_CONFIG[tlZoom].msPerPx) / dt;
+  tlLastX    = e.clientX;
+  tlLastTime = now;
+  const totalDx = e.clientX - tlDragStartX;
+  simMs = tlDragStartMs - totalDx * TL_ZOOM_CONFIG[tlZoom].msPerPx;
+});
+
+window.addEventListener('mouseup', () => {
+  if (!tlDragging) return;
+  tlDragging = false;
+  if (Math.abs(tlVelocity) > 0.01) tlCoasting = true;
+});
+
+// Touch support
+tlCanvas.addEventListener('touchstart', e => {
+  tlDragging    = true;
+  tlCoasting    = false;
+  tlVelocity    = 0;
+  tlDragStartX  = e.touches[0].clientX;
+  tlDragStartMs = simMs;
+  tlLastX       = e.touches[0].clientX;
+  tlLastTime    = performance.now();
+  if (!paused) togglePause();
+  e.preventDefault();
+}, { passive: false });
+
+window.addEventListener('touchmove', e => {
+  if (!tlDragging) return;
+  const now = performance.now();
+  const dt  = now - tlLastTime;
+  const dx  = e.touches[0].clientX - tlLastX;
+  if (dt > 0) tlVelocity = -(dx * TL_ZOOM_CONFIG[tlZoom].msPerPx) / dt;
+  tlLastX    = e.touches[0].clientX;
+  tlLastTime = now;
+  const totalDx = e.touches[0].clientX - tlDragStartX;
+  simMs = tlDragStartMs - totalDx * TL_ZOOM_CONFIG[tlZoom].msPerPx;
+  e.preventDefault();
+}, { passive: false });
+
+window.addEventListener('touchend', () => {
+  if (!tlDragging) return;
+  tlDragging = false;
+  if (Math.abs(tlVelocity) > 0.01) tlCoasting = true;
+});
+
+// Momentum tick — called from main loop
+function tickTimeline(dt) {
+  if (!tlCoasting) return;
+  simMs += tlVelocity * dt;
+  tlVelocity *= 0.92; // friction — decay per ms tick
+  if (Math.abs(tlVelocity) < 0.001) { tlVelocity = 0; tlCoasting = false; }
+}
+
+window.addEventListener('resize', resizeTimeline);
+setTimeout(resizeTimeline, 0);
+
+// ── Canvas setup ──────────────────────────────────────────────────────────────
+const canvas = document.getElementById('wheel');
+const ctx = canvas.getContext('2d');
+const W = 700, H = 700, CX = W/2, CY = H/2;
+const DPR = window.devicePixelRatio || 1;
+canvas.width  = W * DPR;
+canvas.height = H * DPR;
+canvas.style.width  = W + 'px';
+canvas.style.height = H + 'px';
+
+// Radii
+const R_OUTER     = 304;  // outer edge of zodiac ring
+const R_SIGN_IN   = 252;  // inner edge of zodiac ring
+const R_NATAL     = 330;  // natal planet ring (outside zodiac ring)
+const R_PLANET    = 222;  // transit/main planet ring
+const R_ASPECT    = 202;  // where aspect lines connect
+const R_CENTER    = 10;   // earth dot
+
+function css(v) {
+  return getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+}
+function getThemeCol(name) {
+  const map = {
+    bg:     lightMode ? '#f5f3ee' : '#0e0d0b',
+    bg2:    lightMode ? '#ede9e0' : '#1a1917',
+    ring:   lightMode ? '#ddd8cc' : '#2a2825',
+    text:   lightMode ? '#2c2820' : '#707070',
+    muted:  lightMode ? '#8a8478' : '#6e6a60',
+    border: lightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.08)',
+    gold:   lightMode ? '#b07a10' : '#c8941a',
+  };
+  return map[name];
+}
+
+// ── Draw ──────────────────────────────────────────────────────────────────────
+function draw() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const bg     = getThemeCol('bg');
+  const bg2    = getThemeCol('bg2');
+  const ring   = getThemeCol('ring');
+  const text   = getThemeCol('text');
+  const muted  = getThemeCol('muted');
+  const border = getThemeCol('border');
+  const gold   = getThemeCol('gold');
+  const lons   = cachedLons;
+  const pulse  = 0.5 + 0.5 * Math.sin(performance.now() / 1200);
+
+  // ── Outer disc — slightly darker than page background
+  ctx.beginPath(); ctx.arc(CX, CY, R_OUTER, 0, Math.PI*2);
+  ctx.fillStyle = lightMode ? '#ede9e0' : '#050504'; ctx.fill();
+  ctx.strokeStyle = lightMode ? '#2c2820' : '#707070'; ctx.lineWidth = 1; ctx.stroke();
+  for (let i = 0; i < 12; i++) {
+    const a1 = toRad(-90 + i * 30);
+    const a2 = toRad(-90 + (i+1) * 30);
+
+    // Segment divider lines
+    const x1 = CX + R_OUTER * Math.cos(a1);
+    const y1 = CY + R_OUTER * Math.sin(a1);
+    ctx.beginPath(); ctx.moveTo(CX + R_SIGN_IN * Math.cos(a1), CY + R_SIGN_IN * Math.sin(a1)); ctx.lineTo(x1, y1);
+    ctx.strokeStyle = lightMode ? '#2c2820' : '#707070'; ctx.lineWidth = 0.8; ctx.stroke();
+
+    // Sign symbol — toward inner edge of ring
+    const am = toRad(-90 + i * 30 + 15);
+    const gr = R_SIGN_IN + 20;
+    // Glow: full brightness in middle 20° of sign, fade over 5° at each cusp
+    const signCentre = i * 30 + 15;
+    let sg = 0;
+    for (const lon of lons) {
+      let diff = Math.abs(lon - signCentre);
+      if (diff > 180) diff = 360 - diff;
+      // Within 10° of centre = full, fade to zero over next 5°
+      const contribution = diff <= 10 ? 1 : Math.max(0, 1 - (diff - 10) / 5);
+      sg = Math.max(sg, contribution);
+    }
+    sg = Math.max(0, Math.min(1, sg));
+
+    const gx = CX + gr * Math.cos(am);
+    const gy = CY + gr * Math.sin(am);
+
+    ctx.save();
+    ctx.translate(gx, gy);
+    if (sg > 0.05) {
+      ctx.filter = 'blur(10px)';
+      ctx.strokeStyle = '#9a9690';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.globalAlpha = sg * (0.3 + 0.1 * pulse);
+      SIGN_DRAW[i](ctx, 16);
+      SIGN_DRAW[i](ctx, 16);
+      ctx.filter = 'none';
+      ctx.globalAlpha = 1;
+    }
+    // Base colour: interpolate from muted to bright only when sg > 0
+    const symR = parseInt(muted.slice(1,3)||'6e',16);
+    const symG = parseInt(muted.slice(3,5)||'6a',16);
+    const symB = parseInt(muted.slice(5,7)||'60',16);
+    const symCol = sg > 0.05
+      ? `rgb(${Math.round(symR + sg*(232-symR))},${Math.round(symG + sg*(228-symG))},${Math.round(symB + sg*(220-symB))})`
+      : muted;
+    ctx.strokeStyle = symCol;
+    ctx.lineWidth = 1.3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    SIGN_DRAW[i](ctx, 16);
+    ctx.restore();
+
+    // Sign name
+    const nameR = R_OUTER - 12;
+    const nameAng = toRad(-90 + i * 30 + 15);
+    const nx = CX + nameR * Math.cos(nameAng);
+    const ny = CY + nameR * Math.sin(nameAng);
+    ctx.save();
+    ctx.translate(nx, ny);
+    let rot = nameAng + Math.PI / 2;
+    if (nameAng > 0 && nameAng < Math.PI) rot += Math.PI;
+    ctx.rotate(rot);
+    if (sg > 0.05) {
+      ctx.filter = 'blur(9px)';
+      ctx.font = '10px Georgia, serif';
+      ctx.fillStyle = '#9a9690';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.globalAlpha = sg * (0.35 + 0.1 * pulse);
+      ctx.fillText(SIGNS[i], 0, 0);
+      ctx.fillText(SIGNS[i], 0, 0);
+      ctx.filter = 'none';
+      ctx.globalAlpha = 1;
+    }
+    ctx.font = '10px Georgia, serif';
+    ctx.fillStyle = sg > 0.05
+      ? `rgb(${Math.round(symR + sg*(212-symR))},${Math.round(symG + sg*(208-symG))},${Math.round(symB + sg*(200-symB))})`
+      : muted;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(SIGNS[i], 0, 0);
+    ctx.restore();
+
+    // Degree ticks drawn after inner disc — removed from here
+  }
+
+  // ── Inner disc (open interior)
+  ctx.beginPath(); ctx.arc(CX, CY, R_SIGN_IN - 2, 0, Math.PI*2);
+  ctx.fillStyle = lightMode ? '#ede9e0' : '#050504'; ctx.fill();
+  ctx.strokeStyle = lightMode ? '#2c2820' : '#707070'; ctx.lineWidth = 1; ctx.stroke();
+
+  // ── Degree ticks — drawn on top of inner disc edge, pointing inward
+  for (let deg = 0; deg < 360; deg++) {
+    const ta = toRad(-90 + deg);
+    const isTen  = deg % 10 === 0;
+    const isFive = deg % 5 === 0 && !isTen;
+    const tLen = isTen ? 9 : isFive ? 6 : 3;
+    const r1 = R_SIGN_IN - 3;
+    const r2 = r1 - tLen;
+    ctx.beginPath();
+    ctx.moveTo(CX + r1*Math.cos(ta), CY + r1*Math.sin(ta));
+    ctx.lineTo(CX + r2*Math.cos(ta), CY + r2*Math.sin(ta));
+    ctx.strokeStyle = isTen ? (lightMode ? '#2c2820' : '#707070') : muted;
+    ctx.lineWidth = isTen ? 1 : isFive ? 0.7 : 0.5;
+    ctx.stroke();
+  }
+
+  // ── Planet ring guide (faint)
+  ctx.beginPath(); ctx.arc(CX, CY, R_PLANET, 0, Math.PI*2);
+  ctx.strokeStyle = muted + '22'; ctx.lineWidth = 0.5;
+  ctx.setLineDash([2, 6]); ctx.stroke(); ctx.setLineDash([]);
+
+  // ── Compute all planet longitudes
+
+
+  // ── Aspect lines (cross the open interior between planets)
+  if (showAspects && !natalOnly) {
+    const moonHidden = currentSpeedMult >= 604800;
+    for (let a = 0; a < lons.length; a++) {
+      if (moonHidden && PLANETS[a].name === 'Moon') continue;
+      if (!showChiron && PLANETS[a].name === 'Chiron') continue;
+      // Skip fast planets entirely when natal is on
+      if (majorTransits && PLANETS[a].transitWeight < 0.30) continue;
+      for (let b = a + 1; b < lons.length; b++) {
+        if (moonHidden && PLANETS[b].name === 'Moon') continue;
+        if (!showChiron && PLANETS[b].name === 'Chiron') continue;
+        if (majorTransits && PLANETS[b].transitWeight < 0.30) continue;
+        const diff = Math.abs(lons[a] - lons[b]);
+        const d = Math.min(diff, 360 - diff);
+        for (const asp of ASPECTS) {
+          const deviation = Math.abs(d - asp.angle);
+          if (deviation < asp.orb && showAspects && aspectEnabled[asp.name]) {
+            const angA = toRad(-90 + lons[a]);
+            const angB = toRad(-90 + lons[b]);
+            const x1 = CX + R_ASPECT * Math.cos(angA);
+            const y1 = CY + R_ASPECT * Math.sin(angA);
+            const x2 = CX + R_ASPECT * Math.cos(angB);
+            const y2 = CY + R_ASPECT * Math.sin(angB);
+
+            // Fade across the full orb — 1.0 at exact aspect, 0.0 at orb edge
+            const orbFade = Math.max(0, 1 - (deviation / asp.orb));
+            // Fade line by the faster planet's weight (min = fastest)
+            const natalDim = majorTransits ? Math.min(PLANETS[a].transitWeight, PLANETS[b].transitWeight) : 1.0;
+            if (natalDim < 0.30) break; // too faint — skip entirely
+
+            const offset = (a * 3 + b) * 0.7;
+            const aspPulse = 0.5 + 0.5 * Math.sin(performance.now() / 500 + offset);
+
+            // Glow pass
+            ctx.save();
+            ctx.filter = `blur(4px)`;
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+            ctx.strokeStyle = asp.col;
+            ctx.lineWidth = 6;
+            ctx.globalAlpha = (0.2 + 0.35 * aspPulse) * orbFade * natalDim;
+            ctx.setLineDash(asp.dash);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+
+            // Sharp pass
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+            ctx.strokeStyle = asp.col;
+            ctx.lineWidth = 1.5;
+            ctx.globalAlpha = (0.35 + 0.5 * aspPulse) * orbFade * natalDim;
+            ctx.setLineDash(asp.dash);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // ── Natal-to-natal aspect lines (shown only in natal-only mode)
+  if (showNatal && showAspects && natalOnly && cachedNatalLons) {
+    const moonHidden = currentSpeedMult >= 604800;
+    for (let a = 0; a < cachedNatalLons.length; a++) {
+      if (moonHidden && PLANETS[a].name === 'Moon') continue;
+      if (!showChiron && PLANETS[a].name === 'Chiron') continue;
+      for (let b = a + 1; b < cachedNatalLons.length; b++) {
+        if (moonHidden && PLANETS[b].name === 'Moon') continue;
+        if (!showChiron && PLANETS[b].name === 'Chiron') continue;
+        const diff = Math.abs(cachedNatalLons[a] - cachedNatalLons[b]);
+        const d = Math.min(diff, 360 - diff);
+        for (const asp of ASPECTS) {
+          const deviation = Math.abs(d - asp.angle);
+          if (deviation < asp.orb && aspectEnabled[asp.name]) {
+            const orbFade = Math.max(0, 1 - deviation / asp.orb);
+            const offset = (a * 5 + b) * 0.7;
+            const aspPulse = 0.5 + 0.5 * Math.sin(performance.now() / 500 + offset);
+            const angA = toRad(-90 + cachedNatalLons[a]);
+            const angB = toRad(-90 + cachedNatalLons[b]);
+            const x1 = CX + R_ASPECT * Math.cos(angA);
+            const y1 = CY + R_ASPECT * Math.sin(angA);
+            const x2 = CX + R_ASPECT * Math.cos(angB);
+            const y2 = CY + R_ASPECT * Math.sin(angB);
+            ctx.save();
+            ctx.filter = 'blur(4px)';
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+            ctx.strokeStyle = asp.col; ctx.lineWidth = 6;
+            ctx.globalAlpha = (0.2 + 0.35 * aspPulse) * orbFade;
+            ctx.setLineDash(asp.dash); ctx.stroke(); ctx.setLineDash([]);
+            ctx.restore();
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+            ctx.strokeStyle = asp.col; ctx.lineWidth = 1.5;
+            ctx.globalAlpha = (0.35 + 0.5 * aspPulse) * orbFade;
+            ctx.setLineDash(asp.dash); ctx.stroke(); ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // ── Transit aspect lines (natal vs transiting planets) — hidden in natal-only mode
+  if (showNatal && showAspects && !natalOnly && cachedNatalLons) {
+    const moonHidden = currentSpeedMult >= 604800;
+    for (let a = 0; a < lons.length; a++) {
+      if (moonHidden && PLANETS[a].name === 'Moon') continue;
+      if (!showChiron && PLANETS[a].name === 'Chiron') continue;
+      for (let b = 0; b < cachedNatalLons.length; b++) {
+        const diff = Math.abs(lons[a] - cachedNatalLons[b]);
+        const d = Math.min(diff, 360 - diff);
+        for (const asp of ASPECTS) {
+          const deviation = Math.abs(d - asp.angle);
+          const transitOrb = Math.min(asp.orb, 3);
+          if (deviation < transitOrb && aspectEnabled[asp.name]) {
+            const orbFade = Math.max(0, 1 - deviation / transitOrb);
+            const transitPlanetWeight = majorTransits ? PLANETS[a].transitWeight : 1.0;
+            if (transitPlanetWeight < 0.30) break;
+            const offset = (a * 3 + b) * 0.9;
+            const aspPulse = 0.5 + 0.5 * Math.sin(performance.now() / 500 + offset);
+
+            const angA = toRad(-90 + lons[a]);             // transiting planet
+            const angB = toRad(-90 + cachedNatalLons[b]);  // natal planet
+
+            const x1 = CX + R_ASPECT * Math.cos(angA);
+            const y1 = CY + R_ASPECT * Math.sin(angA);
+            const x2 = CX + R_ASPECT * Math.cos(angB);
+            const y2 = CY + R_ASPECT * Math.sin(angB);
+
+            // Always use aspect colours for transit-to-natal lines
+            const tCol = asp.col;
+
+            // Glow pass
+            ctx.save();
+            ctx.filter = 'blur(4px)';
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+            ctx.strokeStyle = tCol;
+            ctx.lineWidth = 6;
+            ctx.globalAlpha = (0.2 + 0.35 * aspPulse) * orbFade * transitPlanetWeight;
+            ctx.setLineDash(asp.dash);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+
+            // Sharp pass
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+            ctx.strokeStyle = tCol;
+            ctx.lineWidth = 1.5;
+            ctx.globalAlpha = (0.35 + 0.5 * aspPulse) * orbFade * transitPlanetWeight;
+            ctx.setLineDash(asp.dash);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // ── Draw planets — all on one ring just inside the zodiac
+  planetPositions = [];
+
+
+  // Pre-compute which planets are related to the hovered one via active aspects
+  const activePlanet = selectedPlanet || hoveredPlanet;
+  const hoveredIdx = activePlanet ? PLANETS.indexOf(activePlanet) : -1;
+  const moonHidden = currentSpeedMult >= 604800;
+  const relatedSet = new Set();
+  if (hoveredIdx >= 0) {
+    relatedSet.add(hoveredIdx);
+    PLANETS.forEach((q, j) => {
+      if (j === hoveredIdx) return;
+      if (moonHidden && q.name === 'Moon') return;
+      const diff = Math.abs(lons[hoveredIdx] - lons[j]);
+      const d = Math.min(diff, 360 - diff);
+      for (const asp of ASPECTS) {
+        if (aspectEnabled[asp.name] && Math.abs(d - asp.angle) < asp.orb) {
+          relatedSet.add(j);
+          break;
+        }
+      }
+    });
+  }
+
+  for (let i = 0; i < PLANETS.length; i++) {
+    const p = PLANETS[i];
+    // Hide Moon at high speed (1w/s) — it moves too fast to be meaningful
+    if (p.name === 'Moon' && currentSpeedMult >= 604800) continue;
+    // Hide Chiron unless toggled on
+    if (p.name === 'Chiron' && !showChiron) continue;
+    const lon = lons[i];
+    const ang = toRad(-90 + lon);
+    const px  = CX + R_PLANET * Math.cos(ang);
+    const py  = CY + R_PLANET * Math.sin(ang);
+
+    const isHovered = activePlanet === p;
+    const isRelated = hoveredIdx < 0 || relatedSet.has(i);
+    const dimmed    = hoveredIdx >= 0 && !isRelated;
+    const natalFade = majorTransits ? p.transitWeight : 1.0;
+    const baseSize  = (p.r + 4) * 3;
+    const fontSize  = isHovered ? baseSize * 1.35 : baseSize;
+    const dimAlpha  = (dimmed ? 0.08 : 1.0) * natalFade;
+
+    // Tick line
+    const tx = CX + R_SIGN_IN * Math.cos(ang);
+    const ty = CY + R_SIGN_IN * Math.sin(ang);
+    ctx.save();
+    ctx.globalAlpha = dimAlpha;
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(tx, ty);
+    ctx.strokeStyle = p.col + '88'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.restore();
+
+    // Shape-accurate glow
+    const glowAlpha = dimmed ? 0 : isHovered ? 0.85 : 0.5 + 0.2 * pulse;
+    const blurAmt   = isHovered ? 14 : 10;
+    if (glowAlpha > 0) {
+      ctx.save();
+      ctx.filter = `blur(${blurAmt}px)`;
+      ctx.font = `${fontSize}px 'Segoe UI Symbol', 'Apple Symbols', 'DejaVu Sans', sans-serif`;
+      ctx.fillStyle = p.col;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.globalAlpha = glowAlpha;
+      ctx.fillText(p.sym, px, py);
+      ctx.fillText(p.sym, px, py);
+      ctx.restore();
+    }
+
+    // Sharp glyph
+    ctx.save();
+    ctx.globalAlpha = dimAlpha;
+    ctx.font = `${fontSize}px 'Segoe UI Symbol', 'Apple Symbols', 'DejaVu Sans', sans-serif`;
+    ctx.fillStyle = p.col;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(p.sym, px, py);
+    ctx.restore();
+
+    planetPositions.push({ x: px, y: py, lon, p, r: p.r });
+  }
+
+  // ── Natal planet ring (blue, outer ring)
+    if (showNatal && cachedNatalLons) {
+      natalPositions = [];
+    // Faint guide ring
+    ctx.beginPath(); ctx.arc(CX, CY, R_NATAL, 0, Math.PI*2);
+    ctx.strokeStyle = '#3a64a855'; ctx.lineWidth = 0.4;
+    ctx.setLineDash([2,6]); ctx.stroke(); ctx.setLineDash([]);
+
+    for (let i = 0; i < PLANETS.length; i++) {
+      const p = PLANETS[i];
+      if (p.name === 'Chiron' && !showChiron) continue;
+      const lon = cachedNatalLons[i];
+      const ang = toRad(-90 + lon);
+      const px  = CX + R_NATAL * Math.cos(ang);
+      const py  = CY + R_NATAL * Math.sin(ang);
+
+      // Tick to outer sign edge
+      const tx = CX + R_OUTER * Math.cos(ang);
+      const ty = CY + R_OUTER * Math.sin(ang);
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(tx, ty);
+      ctx.strokeStyle = '#3a64a866'; ctx.lineWidth = 0.8; ctx.stroke();
+
+      // Glow
+      const baseSize = (p.r + 4) * 3;
+      ctx.save();
+      ctx.filter = 'blur(10px)';
+      ctx.font = `${baseSize}px 'Segoe UI Symbol','Apple Symbols','DejaVu Sans',sans-serif`;
+      ctx.fillStyle = '#4a84c8';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.globalAlpha = 0.5 + 0.2 * pulse;
+      ctx.fillText(p.sym, px, py);
+      ctx.fillText(p.sym, px, py);
+      ctx.restore();
+
+      // Sharp glyph in blue
+      ctx.font = `${baseSize}px 'Segoe UI Symbol','Apple Symbols','DejaVu Sans',sans-serif`;
+      ctx.fillStyle = '#6a9acc';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(p.sym, px, py);
+
+      natalPositions.push({ x: px, y: py, lon: cachedNatalLons[i], p, r: p.r, natal: true });
+    }
+  }
+
+  // ── Centre — Earth dot
+  const earthHovered = activePlanet === 'earth';
+  const earthR = earthHovered ? R_CENTER * 1.1 : R_CENTER * 0.6;
+
+  // Glow — large and soft
+  ctx.save();
+  ctx.filter = `blur(${earthHovered ? 14 : 10}px)`;
+  ctx.beginPath(); ctx.arc(CX, CY, earthR * 3, 0, Math.PI*2);
+  ctx.fillStyle = '#2a5aae';
+  ctx.globalAlpha = earthHovered ? 0.5 : 0.3;
+  ctx.fill();
+  ctx.restore();
+
+  // Single solid dot — small
+  ctx.beginPath(); ctx.arc(CX, CY, earthR, 0, Math.PI*2);
+  ctx.fillStyle = '#4a7acc'; ctx.fill();
+
+  // ── Update planet bar
+
+  // ── Keep selected planet tooltip live
+  if (selectedPlanet && selectedPlanet !== 'earth') {
+    if (typeof selectedPlanet === 'string' && selectedPlanet.startsWith('natal:')) {
+      const name = selectedPlanet.slice(6);
+      const nn = natalPositions.find(n => n.p.name === name);
+      if (nn) showNatalTip(nn);
+    } else {
+      const selPP = planetPositions.find(pp => pp.p === selectedPlanet);
+      if (selPP) showTip(selPP, false);
+    }
+  }
+
+  // ── Time display
+  const d = new Date(simMs);
+  updateDrums(d.getUTCFullYear(), d.getUTCMonth()+1, d.getUTCDate());
+  const hr = String(d.getUTCHours()).padStart(2,'0');
+  const mn = String(d.getUTCMinutes()).padStart(2,'0');
+  document.getElementById('time-utc').textContent = `${hr}:${mn} UTC`;
+}
+
+
+
+
+// ── Planet bar ────────────────────────────────────────────────────────────────
+function updatePlanetBar(lons) {
+  const bar = document.getElementById('planet-bar');
+  bar.innerHTML = '';
+  PLANETS.forEach((p, i) => {
+    const el = document.createElement('div');
+    el.className = 'pi';
+    el.innerHTML = `<span class="psym" style="color:${p.col}">${p.sym}</span><span class="pname">${p.name}</span><span class="ppos">${signLabel(lons[i])}</span>`;
+    bar.appendChild(el);
+  });
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+const tip = document.getElementById('tooltip');
+let selectedPlanet = null; // locked by click
+let natalPositions = [];
+
+function showTip(found, earthHit) {
+  if (earthHit && !found) {
+    tip.innerHTML = `
+      <span class="t-sym" style="color:#2a5a9e">⊕</span>
+      <span class="t-name" style="color:#a0c4e8">You are here</span>
+    `;
+    tip.style.opacity = '1';
+  } else if (found) {
+    const idx = PLANETS.indexOf(found.p);
+    const lons = cachedLons;
+    const aspStrs = [];
+    PLANETS.forEach((q, j) => {
+      if (j === idx) return;
+      if (currentSpeedMult >= 604800 && q.name === 'Moon') return;
+      const diff = Math.abs(lons[idx] - lons[j]);
+      const d = Math.min(diff, 360 - diff);
+      for (const asp of ASPECTS) {
+        if (Math.abs(d - asp.angle) < asp.orb) {
+          aspStrs.push(`<span style="color:${asp.col}">${asp.name} ${q.name}</span>`);
+          break;
+        }
+      }
+    });
+    const signName = SIGNS[Math.floor(found.lon / 30)];
+    tip.innerHTML = `
+      <span class="t-sym" style="color:${found.p.col}">${found.p.sym}</span>
+      <span class="t-name">${found.p.name} — ${signName}</span>
+      <span class="t-pos">${signLabel(found.lon)}</span>
+      ${aspStrs.length ? `<span class="t-asp">${aspStrs.join('<br>')}</span>` : ''}
+    `;
+    tip.style.opacity = '1';
+  } else {
+    tip.style.opacity = '0';
+  }
+}
+
+function showNatalTip(nn) {
+  const signName = SIGNS[Math.floor(nn.lon / 30)];
+  const idx = PLANETS.indexOf(nn.p);
+  const aspStrs = [];
+  if (cachedNatalLons) {
+    // Aspects to other natal planets
+    PLANETS.forEach((q, j) => {
+      if (j === idx) return;
+      const diff = Math.abs(cachedNatalLons[idx] - cachedNatalLons[j]);
+      const d = Math.min(diff, 360 - diff);
+      for (const asp of ASPECTS) {
+        if (Math.abs(d - asp.angle) < asp.orb) {
+          aspStrs.push(`<span style="color:${asp.col}">${asp.name} ${q.name}</span>`);
+          break;
+        }
+      }
+    });
+  }
+  tip.innerHTML = `
+    <span class="t-sym" style="color:#6a9acc">${nn.p.sym}</span>
+    <span class="t-name" style="color:#a0c4e8">${nn.p.name} — ${signName}</span>
+    <span class="t-pos" style="color:#6a9acc">Natal ${signLabel(nn.lon)}</span>
+    ${aspStrs.length ? `<span class="t-asp">${aspStrs.join('<br>')}</span>` : ''}
+  `;
+  tip.style.opacity = '1';
+}
+
+function findHit(mx, my) {
+  // Check transiting planets first
+  for (const pp of planetPositions) {
+    const dx = mx - pp.x, dy = my - pp.y;
+    if (dx*dx + dy*dy < (pp.r + 18) * (pp.r + 18)) return { type: 'transit', pp };
+  }
+  // Check natal planets
+  if (showNatal) {
+    for (const nn of natalPositions) {
+      const dx = mx - nn.x, dy = my - nn.y;
+      if (dx*dx + dy*dy < (nn.r + 18) * (nn.r + 18)) return { type: 'natal', nn };
+    }
+  }
+  // Check Earth
+  const edx = mx - CX, edy = my - CY;
+  if (edx*edx + edy*edy < (R_CENTER + 14) * (R_CENTER + 14)) return { type: 'earth' };
+  return null;
+}
+
+canvas.addEventListener('mousemove', e => {
+  if (selectedPlanet) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * W / rect.width;
+  const my = (e.clientY - rect.top)  * H / rect.height;
+  const hit = findHit(mx, my);
+  hoveredPlanet = hit?.type === 'transit' ? hit.pp.p : hit?.type === 'earth' ? 'earth' : null;
+  canvas.style.cursor = hit ? 'pointer' : 'default';
+  if (!hit) { tip.style.opacity = '0'; return; }
+  if (hit.type === 'transit') showTip(hit.pp, false);
+  else if (hit.type === 'natal') showNatalTip(hit.nn);
+  else showTip(null, true);
+});
+
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * W / rect.width;
+  const my = (e.clientY - rect.top)  * H / rect.height;
+  const hit = findHit(mx, my);
+
+  if (hit) {
+    const clicking = hit.type === 'transit' ? hit.pp.p : hit.type === 'natal' ? { natal: true, p: hit.nn.p } : 'earth';
+    const key = hit.type === 'natal' ? 'natal:' + hit.nn.p.name : clicking;
+    if (selectedPlanet === key) {
+      selectedPlanet = null; hoveredPlanet = null; tip.style.opacity = '0';
+    } else {
+      selectedPlanet = key;
+      hoveredPlanet = hit.type === 'transit' ? hit.pp.p : null;
+      if (hit.type === 'transit') showTip(hit.pp, false);
+      else if (hit.type === 'natal') showNatalTip(hit.nn);
+      else showTip(null, true);
+    }
+  } else {
+    selectedPlanet = null; hoveredPlanet = null; tip.style.opacity = '0';
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  if (!selectedPlanet) {
+    tip.style.opacity = '0';
+    hoveredPlanet = null;
+  }
+});
+
+// ── Speed dropdown ────────────────────────────────────────────────────────────
+const SPEED_OPTIONS = [
+  { label: 'Realtime', mult: 1        },
+  { label: '5h/s',     mult: 18000    },
+  { label: '12h/s',    mult: 43200    },
+  { label: '1d/s',     mult: 86400    },
+  { label: '1w/s',     mult: 604800   },
+];
+
+let currentSpeedMult = SPEED_OPTIONS[3].mult;
+
+function speedMultiplier() { return currentSpeedMult; }
+
+function togglePause() {
+  paused = !paused;
+  document.getElementById('pause-btn').textContent = paused ? '▶' : '⏸';
+  if (!paused) lastRealMs = Date.now();
+}
+
+function resetToNow() {
+  simMs = Date.now();
+  lastRealMs = Date.now();
+}
+
+function toggleAllAspects() {
+  showAspects = !showAspects;
+  const allOn = showAspects;
+  document.getElementById('asp-all').textContent = allOn ? 'All' : 'All';
+  document.getElementById('asp-all').classList.toggle('active', allOn);
+  Object.keys(aspectEnabled).forEach(name => {
+    aspectEnabled[name] = allOn;
+    document.getElementById('asp-' + name).classList.toggle('active', allOn);
+  });
+}
+
+function toggleAspect(name) {
+  aspectEnabled[name] = !aspectEnabled[name];
+  document.getElementById('asp-' + name).classList.toggle('active', aspectEnabled[name]);
+  const anyOn = Object.values(aspectEnabled).some(v => v);
+  showAspects = anyOn;
+  document.getElementById('asp-all').classList.toggle('active', Object.values(aspectEnabled).every(v => v));
+}
+
+function toggleTheme() {
+  lightMode = !lightMode;
+  document.body.classList.toggle('light', lightMode);
+}
+
+// ── Custom date dropdowns ─────────────────────────────────────────────────────
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+let dateState = { yr: new Date().getUTCFullYear(), mo: new Date().getUTCMonth()+1, dy: new Date().getUTCDate() };
+let selUpdating = false;
+
+function makeCsel(triggerId, dropId, labelId, values, getVal, setVal, onSelect) {
+  const trigger  = document.getElementById(triggerId);
+  const dropdown = document.getElementById(dropId);
+  const label    = document.getElementById(labelId);
+
+  values.forEach((v, i) => {
+    const opt = document.createElement('div');
+    opt.className = 'csel-option';
+    opt.textContent = v;
+    opt.addEventListener('mousedown', e => {
+      e.preventDefault();
+      setVal(i);
+      closeAll();
+      if (onSelect) onSelect(i);
+    });
+    dropdown.appendChild(opt);
+  });
+
+  trigger.addEventListener('click', e => {
+    const wasOpen = dropdown.classList.contains('open');
+    closeAll();
+    if (!wasOpen) {
+      dropdown.classList.add('open');
+      // Scroll selected into view
+      const idx = getVal();
+      const opts = dropdown.querySelectorAll('.csel-option');
+      opts.forEach((o,i) => o.classList.toggle('active', i === idx));
+      const active = dropdown.querySelector('.active');
+      if (active) active.scrollIntoView({block:'center'});
+    }
+    e.stopPropagation();
+  });
+}
+
+function closeAll() {
+  document.querySelectorAll('.csel-dropdown').forEach(d => d.classList.remove('open'));
+}
+document.addEventListener('click', closeAll);
+
+// State accessors
+const yearVals  = Array.from({length:401}, (_,i) => String(1800+i));
+const monthVals = MONTHS_SHORT;
+const dayVals   = Array.from({length:31}, (_,i) => String(i+1).padStart(2,'0'));
+
+let _yi = 0, _mi = 0, _di = 0;
+
+makeCsel('csel-year',  'dd-year',  'lbl-year',  yearVals,  () => _yi, i => { _yi = i; }, () => { syncLabels(); applyDate(); });
+makeCsel('csel-month', 'dd-month', 'lbl-month', monthVals, () => _mi, i => { _mi = i; }, () => { syncLabels(); applyDate(); });
+makeCsel('csel-day',   'dd-day',   'lbl-day',   dayVals,   () => _di, i => { _di = i; }, () => { syncLabels(); applyDate(); });
+
+makeCsel('csel-speed', 'dd-speed', 'lbl-speed',
+  SPEED_OPTIONS.map(o => o.label),
+  () => SPEED_OPTIONS.findIndex(o => o.mult === currentSpeedMult),
+  i => { currentSpeedMult = SPEED_OPTIONS[i].mult; },
+  i => { document.getElementById('lbl-speed').textContent = SPEED_OPTIONS[i].label; }
+);
+// Set initial label to match default speed
+document.getElementById('lbl-speed').textContent = SPEED_OPTIONS.find(o => o.mult === currentSpeedMult).label;
+
+function applyDate() {
+  if (selUpdating) return;
+  const target = Date.UTC(1800 + _yi, _mi, _di + 1);
+  if (!isNaN(target)) { simMs = target; if (!paused) togglePause(); }
+}
+
+function syncLabels() {
+  document.getElementById('lbl-year').textContent  = yearVals[_yi];
+  document.getElementById('lbl-month').textContent = monthVals[_mi];
+  document.getElementById('lbl-day').textContent   = dayVals[_di];
+}
+
+function updateDrums(yr, mo, dy) {
+  selUpdating = true;
+  _yi = Math.max(0, yr - 1800);
+  _mi = mo - 1;
+  _di = dy - 1;
+  syncLabels();
+  selUpdating = false;
+}
+
+updateDrums(new Date().getUTCFullYear(), new Date().getUTCMonth()+1, new Date().getUTCDate());
+
+// ── Natal date dropdowns ──────────────────────────────────────────────────────
+let _nyi = 0, _nmi = 0, _ndi = 0, _nhi = 0, _nmni = 0;
+
+function applyNatalDate() {
+  natalMs = Date.UTC(1800 + _nyi, _nmi, _ndi + 1, _nhi, _nmni * 5);
+  cachedNatalLons = computeLons(natalMs);
+}
+
+function syncNatalLabels() {
+  document.getElementById('lbl-natal-year').textContent  = yearVals[_nyi];
+  document.getElementById('lbl-natal-month').textContent = monthVals[_nmi];
+  document.getElementById('lbl-natal-day').textContent   = dayVals[_ndi];
+  document.getElementById('lbl-natal-hour').textContent  = String(_nhi).padStart(2,'0');
+  document.getElementById('lbl-natal-min').textContent   = String(_nmni * 5).padStart(2,'0');
+}
+
+const hourVals = Array.from({length:24}, (_,i) => String(i).padStart(2,'0'));
+const minVals  = Array.from({length:12}, (_,i) => String(i*5).padStart(2,'0'));
+
+makeCsel('csel-natal-year',  'dd-natal-year',  'lbl-natal-year',  yearVals,  () => _nyi,  i => { _nyi  = i; }, () => { syncNatalLabels(); applyNatalDate(); });
+makeCsel('csel-natal-month', 'dd-natal-month', 'lbl-natal-month', monthVals, () => _nmi,  i => { _nmi  = i; }, () => { syncNatalLabels(); applyNatalDate(); });
+makeCsel('csel-natal-day',   'dd-natal-day',   'lbl-natal-day',   dayVals,   () => _ndi,  i => { _ndi  = i; }, () => { syncNatalLabels(); applyNatalDate(); });
+makeCsel('csel-natal-hour',  'dd-natal-hour',  'lbl-natal-hour',  hourVals,  () => _nhi,  i => { _nhi  = i; }, () => { syncNatalLabels(); applyNatalDate(); });
+makeCsel('csel-natal-min',   'dd-natal-min',   'lbl-natal-min',   minVals,   () => _nmni, i => { _nmni = i; }, () => { syncNatalLabels(); applyNatalDate(); });
+
+// Init natal to today
+_nyi = new Date().getUTCFullYear() - 1800;
+_nmi = new Date().getUTCMonth();
+_ndi = new Date().getUTCDate() - 1;
+_nhi = 0;
+_nmni = 0;
+syncNatalLabels();
+
+function toggleChiron() {
+  showChiron = !showChiron;
+  document.getElementById('asp-chiron').classList.toggle('active', showChiron);
+}
+
+function toggleMajorTransits() {
+  majorTransits = !majorTransits;
+  document.getElementById('asp-major-transits').classList.toggle('active', majorTransits);
+}
+
+function toggleNatalOnly() {
+  natalOnly = !natalOnly;
+  document.getElementById('asp-natal-only').classList.toggle('active', natalOnly);
+}
+
+function toggleNatal() {
+  showNatal = !showNatal;
+  const btn = document.getElementById('natal-toggle');
+  const nd  = document.getElementById('natal-date');
+  btn.textContent = showNatal ? 'Natal' : 'Natal';
+  btn.style.color = showNatal ? '#a0c4e8' : '#6a9acc';
+  nd.style.opacity = showNatal ? '1' : '0.4';
+  nd.style.pointerEvents = showNatal ? 'auto' : 'none';
+  if (showNatal) cachedNatalLons = computeLons(natalMs);
+}
+function loop() {
+  const now = Date.now();
+  const elapsed = now - lastRealMs;
+  if (!paused) {
+    simMs += elapsed * speedMultiplier();
+  }
+  tickTimeline(elapsed);
+  lastRealMs = now;
+  cachedLons = computeLons(simMs);
+  if (showNatal) cachedNatalLons = computeLons(natalMs);
+  draw();
+  drawTimeline();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
