@@ -25,6 +25,7 @@
     --border: rgba(0,0,0,0.1);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  button { -webkit-appearance: none; -moz-appearance: none; appearance: none; -webkit-tap-highlight-color: transparent; background: none; border: none; }
   body {
     background: var(--bg);
     color: var(--text);
@@ -233,9 +234,13 @@
     transition: all 0.2s;
     font-family: 'Courier New', monospace;
     -webkit-appearance: none;
+    -moz-appearance: none;
     appearance: none;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
   }
   button.ctrl-btn:hover { border-color: #fff; color: #fff; }
+  button.ctrl-btn:active { background: #1a1917; }
   #speed-val { min-width: 52px; color: var(--text); font-family: 'Courier New', monospace; font-size: 13px; }
 
   #planet-bar {
@@ -306,7 +311,10 @@
     transition: all 0.15s;
     font-family: 'Courier New', monospace;
     -webkit-appearance: none;
+    -moz-appearance: none;
     appearance: none;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
   }
   .asp-btn::before {
     content: '';
@@ -353,7 +361,10 @@
     letter-spacing: 0.08em;
     transition: all 0.15s;
     -webkit-appearance: none;
+    -moz-appearance: none;
     appearance: none;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
   }
   .tl-zoom.active {
     color: var(--text);
@@ -466,9 +477,9 @@
 
   <div id="timeline-wrap">
     <div id="tl-zoom-btns">
+      <button class="tl-zoom active"  id="tl-days"   onclick="setTlZoom('days')">D</button>
+      <button class="tl-zoom"        id="tl-months" onclick="setTlZoom('months')">M</button>
       <button class="tl-zoom"        id="tl-years"  onclick="setTlZoom('years')">Y</button>
-      <button class="tl-zoom active"  id="tl-months" onclick="setTlZoom('months')">M</button>
-      <button class="tl-zoom"        id="tl-days"   onclick="setTlZoom('days')">D</button>
     </div>
     <div id="timeline-track">
       <canvas id="timeline-canvas" height="40"></canvas>
@@ -489,6 +500,34 @@
     <button class="asp-btn active" id="asp-Sextile"     onclick="toggleAspect('Sextile')"     style="--ac:#5a7a3a">Sextile</button>
     <div class="asp-divider"></div>
     <button class="asp-btn" id="asp-chiron" onclick="toggleChiron()" style="--ac:#7a9a70">Chiron</button>
+    <div class="asp-divider"></div>
+    <button class="asp-btn" id="asp-degrees" onclick="toggleDegrees()" style="--ac:#9a9690">Degrees</button>
+  </div>
+
+  <div id="life-transits" style="display:none;max-width:640px;width:100%;margin-top:12px;flex-direction:column;gap:8px;">
+
+    <!-- Long range transits -->
+    <div>
+      <div id="life-transits-header" onclick="toggleLifeTransits()" style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Courier New',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text);user-select:none;">
+        <span>Life Transits</span>
+        <span id="life-transits-arrow" style="font-size:10px;transition:transform 0.2s">▼</span>
+      </div>
+      <div id="life-transits-body" style="display:none;border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;max-height:240px;overflow-y:scroll;scrollbar-width:thin;scrollbar-color:var(--border) transparent;">
+        <div id="life-transits-list" style="display:flex;flex-direction:column;font-family:'Courier New',monospace;"></div>
+      </div>
+    </div>
+
+    <!-- Current transits -->
+    <div>
+      <div id="current-transits-header" onclick="toggleCurrentTransits()" style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Courier New',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text);user-select:none;">
+        <span>Current Transits</span>
+        <span id="current-transits-arrow" style="font-size:10px;transition:transform 0.2s">▼</span>
+      </div>
+      <div id="current-transits-body" style="display:none;border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;max-height:200px;overflow-y:scroll;scrollbar-width:thin;scrollbar-color:var(--border) transparent;">
+        <div id="current-transits-list" style="display:flex;flex-direction:column;font-family:'Courier New',monospace;"></div>
+      </div>
+    </div>
+
   </div>
 
 
@@ -794,7 +833,8 @@ let showAspects = true;
 let showNatal = false;
 let natalOnly = false;
 let majorTransits = false;
-let showChiron = false;
+let showChiron = true;
+let showDegrees = true;
 let natalMs = Date.now();
 let cachedNatalLons = null;
 let cachedLons = null;
@@ -828,7 +868,7 @@ let tlWidth     = 0;
 let tlDragging  = false;
 let tlDragStartX = 0;
 let tlDragStartMs = 0;
-let tlZoom = 'months'; // 'years' | 'months' | 'days'
+let tlZoom = 'days'; // 'years' | 'months' | 'days'
 
 const TL_TICK_PX = 120; // every tick is 120px apart regardless of zoom
 
@@ -1047,7 +1087,7 @@ function tickTimeline(dt) {
 
 // Keep loop alive while coasting even if paused
 function shouldKeepLooping() {
-  return !paused || tlCoasting || tlDragging;
+  return !paused || tlCoasting || tlDragging || currentSpeedMult === 1;
 }
 
 window.addEventListener('resize', resizeTimeline);
@@ -1066,7 +1106,7 @@ canvas.style.height = H + 'px';
 // Radii
 const R_OUTER     = 304;  // outer edge of zodiac ring
 const R_SIGN_IN   = 252;  // inner edge of zodiac ring
-const R_NATAL     = 330;  // natal planet ring (outside zodiac ring)
+const R_NATAL     = 322;  // natal planet ring (outside zodiac ring)
 const R_PLANET    = 222;  // transit/main planet ring
 const R_ASPECT    = 202;  // where aspect lines connect
 const R_CENTER    = 10;   // earth dot
@@ -1403,6 +1443,29 @@ function draw() {
     ctx.restore();
 
     planetPositions.push({ x: px, y: py, lon, p, r: p.r });
+
+    // Degree label — radially aligned, just inside the planet ring
+    if (showDegrees) {
+      const degVal = Math.floor(lon % 30);
+      const minVal = Math.floor((lon % 1) * 60);
+      const label  = `${degVal}°${String(minVal).padStart(2,'0')}'`;
+      const labelR = R_PLANET - 28;
+      const lx = CX + labelR * Math.cos(ang);
+      const ly = CY + labelR * Math.sin(ang);
+      ctx.save();
+      ctx.translate(lx, ly);
+      // Rotate so text reads along the radius, flipping bottom half
+      let labelRot = ang;
+      if (ang > Math.PI / 2 && ang < Math.PI * 1.5) labelRot += Math.PI;
+      ctx.rotate(labelRot);
+      ctx.font = '9px Courier New, monospace';
+      ctx.fillStyle = p.col;
+      ctx.globalAlpha = dimAlpha * 0.85;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+    }
   }
 
   // ── Natal planet ring (blue, outer ring)
@@ -1428,21 +1491,112 @@ function draw() {
       ctx.strokeStyle = '#3a64a866'; ctx.lineWidth = 0.8; ctx.stroke();
 
       // Sharp glyph in blue — no blur, use size for differentiation
-      const baseSize = (p.r + 4) * 3;
+      const baseSize = (p.r + 2) * 3;
       ctx.font = `${baseSize}px 'Segoe UI Symbol','Apple Symbols','DejaVu Sans',sans-serif`;
       ctx.fillStyle = '#6a9acc';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(p.sym, px, py);
 
       natalPositions.push({ x: px, y: py, lon: cachedNatalLons[i], p, r: p.r, natal: true });
+
+      if (showDegrees) {
+        const degVal = Math.floor(cachedNatalLons[i] % 30);
+        const minVal = Math.floor((cachedNatalLons[i] % 1) * 60);
+        const label  = `${degVal}°${String(minVal).padStart(2,'0')}'`;
+        const labelR = R_NATAL + 18;
+        const lx = CX + labelR * Math.cos(ang);
+        const ly = CY + labelR * Math.sin(ang);
+        ctx.save();
+        ctx.translate(lx, ly);
+        let labelRot = ang + Math.PI / 2;
+        if (ang > 0 && ang < Math.PI) labelRot += Math.PI;
+        ctx.rotate(labelRot);
+        ctx.font = '9px Courier New, monospace';
+        ctx.fillStyle = '#6a9acc';
+        ctx.globalAlpha = 0.8;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, 0, 0);
+        ctx.restore();
+      }
     }
   }
 
-  // ── Centre — Earth dot
+  // ── Centre — Earth dot + clock hands in realtime mode
   const earthHovered = activePlanet === 'earth';
-  const earthR = earthHovered ? R_CENTER * 1.2 : R_CENTER * 0.7;
+  const earthR = earthHovered ? R_CENTER * 0.7 : R_CENTER * 0.4;
 
-  // Solid dot — larger on hover
+  // Clock hands — only in realtime speed
+  if (currentSpeedMult === 1) {
+    const d = new Date(simMs);
+    const secs = d.getUTCSeconds() + d.getUTCMilliseconds() / 1000;
+    const mins = d.getUTCMinutes() + secs / 60;
+    const hrs  = (d.getUTCHours() % 12) + mins / 60;
+
+    const minAng  = (mins / 60) * Math.PI * 2 - Math.PI / 2;
+    const hrAng   = (hrs  / 12) * Math.PI * 2 - Math.PI / 2;
+
+    const minLen = R_CENTER * 10;
+    const hrLen  = R_CENTER * 7;
+
+    ctx.strokeStyle = '#6a9acc';
+    ctx.lineCap = 'round';
+
+    // Helper to draw label at tip of hand, parallel to the hand
+    // Helper to draw label at tip of hand, parallel to the hand
+    const handLabel = (ang, len, label, alpha) => {
+      const tipX = CX + Math.cos(ang) * len;
+      const tipY = CY + Math.sin(ang) * len;
+      const offX = CX + Math.cos(ang) * (len + 10);
+      const offY = CY + Math.sin(ang) * (len + 10);
+      ctx.save();
+      ctx.translate(offX, offY);
+      let rot = ang;
+      if (ang > Math.PI / 2 && ang < Math.PI * 1.5) rot += Math.PI;
+      ctx.rotate(rot);
+      ctx.font = '9px Courier New, monospace';
+      ctx.fillStyle = '#6a9acc';
+      ctx.globalAlpha = alpha;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+    }
+
+    // Second hand
+    const secAng = (secs / 60) * Math.PI * 2 - Math.PI / 2;
+    const secLen = minLen * 1.1;
+    ctx.beginPath();
+    ctx.lineWidth = 0.7;
+    ctx.globalAlpha = 0.6;
+    ctx.moveTo(CX, CY);
+    ctx.lineTo(CX + Math.cos(secAng) * secLen, CY + Math.sin(secAng) * secLen);
+    ctx.stroke();
+    handLabel(secAng, secLen, String(Math.floor(secs)).padStart(2,'0'), 0.5);
+
+    // Minute hand
+    ctx.beginPath();
+    ctx.lineWidth = 0.9;
+    ctx.globalAlpha = 0.9;
+    ctx.moveTo(CX, CY);
+    ctx.lineTo(CX + Math.cos(minAng) * minLen, CY + Math.sin(minAng) * minLen);
+    ctx.stroke();
+    handLabel(minAng, minLen, String(Math.floor(mins)).padStart(2,'0'), 0.8);
+
+    // Hour hand
+    ctx.beginPath();
+    ctx.lineWidth = 1.2;
+    ctx.globalAlpha = 0.7;
+    ctx.moveTo(CX, CY);
+    ctx.lineTo(CX + Math.cos(hrAng) * hrLen, CY + Math.sin(hrAng) * hrLen);
+    ctx.stroke();
+    handLabel(hrAng, hrLen, String(Math.floor(hrs) || 12).padStart(2,'0'), 0.7);
+
+    ctx.globalAlpha = 1;
+    ctx.lineCap = 'butt';
+  }
+
+  // Solid dot
   ctx.beginPath(); ctx.arc(CX, CY, earthR, 0, Math.PI*2);
   ctx.fillStyle = earthHovered ? '#6a9acc' : '#4a7acc'; ctx.fill();
 
@@ -1625,7 +1779,7 @@ const SPEED_OPTIONS = [
   { label: '1w/s',     mult: 604800   },
 ];
 
-let currentSpeedMult = SPEED_OPTIONS[3].mult;
+let currentSpeedMult = SPEED_OPTIONS[0].mult;
 
 function speedMultiplier() { return currentSpeedMult; }
 
@@ -1734,6 +1888,8 @@ makeCsel('csel-speed', 'dd-speed', 'lbl-speed',
 );
 // Set initial label to match default speed
 document.getElementById('lbl-speed').textContent = SPEED_OPTIONS.find(o => o.mult === currentSpeedMult).label;
+document.getElementById('asp-chiron').classList.add('active');
+document.getElementById('asp-degrees').classList.add('active');
 
 function applyDate() {
   if (selUpdating) return;
@@ -1765,6 +1921,7 @@ let _nyi = 0, _nmi = 0, _ndi = 0, _nhi = 0, _nmni = 0;
 function applyNatalDate() {
   natalMs = Date.UTC(1800 + _nyi, _nmi, _ndi + 1, _nhi, _nmni * 5);
   cachedNatalLons = computeLons(natalMs);
+  if (showNatal) renderLifeTransits();
   requestRedraw();
 }
 
@@ -1786,12 +1943,20 @@ makeCsel('csel-natal-hour',  'dd-natal-hour',  'lbl-natal-hour',  hourVals,  () 
 makeCsel('csel-natal-min',   'dd-natal-min',   'lbl-natal-min',   minVals,   () => _nmni, i => { _nmni = i; }, () => { syncNatalLabels(); applyNatalDate(); });
 
 // Init natal to today
-_nyi = new Date().getUTCFullYear() - 1800;
-_nmi = new Date().getUTCMonth();
-_ndi = new Date().getUTCDate() - 1;
+const natalDefault = new Date(Date.now() - 20 * 365.25 * 86400000);
+_nyi = natalDefault.getUTCFullYear() - 1800;
+_nmi = natalDefault.getUTCMonth();
+_ndi = natalDefault.getUTCDate() - 1;
 _nhi = 0;
 _nmni = 0;
+natalMs = Date.UTC(1800 + _nyi, _nmi, _ndi + 1, _nhi, _nmni * 5);
 syncNatalLabels();
+
+function toggleDegrees() {
+  showDegrees = !showDegrees;
+  document.getElementById('asp-degrees').classList.toggle('active', showDegrees);
+  requestRedraw();
+}
 
 function toggleChiron() {
   showChiron = !showChiron;
@@ -1820,7 +1985,224 @@ function toggleNatal() {
   nd.style.opacity = showNatal ? '1' : '0.4';
   nd.style.pointerEvents = showNatal ? 'auto' : 'none';
   if (showNatal) cachedNatalLons = computeLons(natalMs);
+  document.getElementById('life-transits').style.display = showNatal ? 'flex' : 'none';
+  if (showNatal) { renderLifeTransits(); const ctb = document.getElementById("current-transits-body"); if (ctb && ctb.style.display !== "none") renderCurrentTransits(); }
   requestRedraw();
+}
+
+// ── Life Transits ─────────────────────────────────────────────────────────────
+const LIFE_TRANSITS = [
+  { planet:'Saturn',  aspect:'Conjunction', angle:0,   label:'Saturn Return',        desc:'~age 29, 58, 88 — major life restructuring' },
+  { planet:'Saturn',  aspect:'Opposition',  angle:180, label:'Saturn Opposition',     desc:'~age 14-15, 44-45 — challenge to structure' },
+  { planet:'Saturn',  aspect:'Square',      angle:90,  label:'Saturn Square',         desc:'~age 7, 21, 36, 51 — structural pressure' },
+  { planet:'Jupiter', aspect:'Conjunction', angle:0,   label:'Jupiter Return',        desc:'~every 12 years — expansion and opportunity' },
+  { planet:'Jupiter', aspect:'Opposition',  angle:180, label:'Jupiter Opposition',    desc:'~age 6, 18, 30, 42 — growth through others' },
+  { planet:'Uranus',  aspect:'Opposition',  angle:180, label:'Uranus Opposition',     desc:'~age 40-42 — the midlife awakening' },
+  { planet:'Uranus',  aspect:'Square',      angle:90,  label:'Uranus Square',         desc:'~age 21, 63 — revolutionary impulse' },
+  { planet:'Neptune', aspect:'Square',      angle:90,  label:'Neptune Square',        desc:'~age 40-42 — dissolution of illusions' },
+  { planet:'Pluto',   aspect:'Square',      angle:90,  label:'Pluto Square',          desc:'~age 36-60 (generational) — deep transformation' },
+  { planet:'Chiron',  aspect:'Conjunction', angle:0,   label:'Chiron Return',         desc:'~age 50 — the wounded healer completes' },
+  { planet:'Chiron',  aspect:'Opposition',  angle:180, label:'Chiron Opposition',     desc:'~age 25 — confronting core wounds' },
+];
+
+function findTransitDates(natalLon, transitPlanet, aspectAngle) {
+  // Search ±60 years from natal date in 30-day steps, then refine
+  const results = [];
+  const p = PLANETS.find(pl => pl.name === transitPlanet);
+  if (!p) return results;
+  const step = 30 * 86400000; // 30 days in ms
+  const range = 60 * 365.25 * 86400000; // 60 years
+  const start = natalMs - 5 * 365.25 * 86400000; // start 5 years before natal
+
+  let prevDiff = null;
+  for (let t = start; t < start + range; t += step) {
+    const lons = computeLons(t);
+    const idx = PLANETS.indexOf(p);
+    const lon = lons[idx];
+    let diff = ((lon - natalLon - aspectAngle) % 360 + 360) % 360;
+    if (diff > 180) diff -= 360; // signed -180 to 180
+    if (prevDiff !== null && prevDiff * diff < 0 && Math.abs(prevDiff - diff) < 90) {
+      // Sign change — refine with binary search
+      let lo = t - step, hi = t;
+      for (let iter = 0; iter < 20; iter++) {
+        const mid = (lo + hi) / 2;
+        const midLons = computeLons(mid);
+        const midLon = midLons[idx];
+        let midDiff = ((midLon - natalLon - aspectAngle) % 360 + 360) % 360;
+        if (midDiff > 180) midDiff -= 360;
+        if (midDiff * diff < 0) lo = mid; else hi = mid;
+      }
+      results.push(Math.round((lo + hi) / 2));
+    }
+    prevDiff = diff;
+  }
+  return results;
+}
+
+function toggleCurrentTransits() {
+  const body = document.getElementById('current-transits-body');
+  const arrow = document.getElementById('current-transits-arrow');
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  arrow.style.transform = open ? 'rotate(180deg)' : '';
+  if (open) renderCurrentTransits();
+}
+
+const CURRENT_TRANSIT_PLANETS = ['Moon','Sun','Mercury','Venus','Mars','Jupiter','Saturn'];
+const CURRENT_TRANSIT_ASPECTS = [
+  { name:'Conjunction', angle:0,   col:'#3a64a8' },
+  { name:'Opposition',  angle:180, col:'#c04828' },
+  { name:'Trine',       angle:120, col:'#3a88b0' },
+  { name:'Square',      angle:90,  col:'#c87820' },
+  { name:'Sextile',     angle:60,  col:'#5a7a3a' },
+];
+const CURRENT_ORBS = { Moon:2, Sun:3, Mercury:3, Venus:3, Mars:4, Jupiter:5, Saturn:5 };
+const CURRENT_WINDOW = 10 * 86400000; // 10 days either side
+
+function renderCurrentTransits() {
+  const list = document.getElementById('current-transits-list');
+  list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:7px 16px">Calculating…</div>';
+
+  setTimeout(() => {
+    const now = Date.now();
+    const events = [];
+
+    for (const pName of CURRENT_TRANSIT_PLANETS) {
+      const pIdx = PLANETS.findIndex(p => p.name === pName);
+      if (pIdx < 0) continue;
+      const orb = CURRENT_ORBS[pName] || 3;
+
+      for (let ni = 0; ni < PLANETS.length; ni++) {
+        const natalLon = cachedNatalLons[ni];
+        const natalName = PLANETS[ni].name;
+
+        for (const asp of CURRENT_TRANSIT_ASPECTS) {
+          // Scan ±window in 1-day steps
+          const step = 86400000;
+          let prevDiff = null;
+          for (let t = now - CURRENT_WINDOW; t < now + CURRENT_WINDOW; t += step) {
+            const lons = computeLons(t);
+            const lon = lons[pIdx];
+            let diff = ((lon - natalLon - asp.angle) % 360 + 360) % 360;
+            if (diff > 180) diff -= 360;
+            if (prevDiff !== null && prevDiff * diff < 0 && Math.abs(prevDiff - diff) < 90) {
+              // Refine
+              let lo = t - step, hi = t;
+              for (let iter = 0; iter < 16; iter++) {
+                const mid = (lo + hi) / 2;
+                const midLons = computeLons(mid);
+                let midDiff = ((midLons[pIdx] - natalLon - asp.angle) % 360 + 360) % 360;
+                if (midDiff > 180) midDiff -= 360;
+                if (midDiff * diff < 0) lo = mid; else hi = mid;
+              }
+              const exactMs = Math.round((lo + hi) / 2);
+              events.push({ ms: exactMs, transit: pName, natal: natalName, asp: asp.name, col: asp.col, past: exactMs < now });
+            }
+            prevDiff = diff;
+          }
+        }
+      }
+    }
+
+    events.sort((a, b) => Math.abs(a.ms - now) - Math.abs(b.ms - now));
+
+    list.innerHTML = '';
+    if (!events.length) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:7px 16px">No exact transits in the next 30 days</div>';
+      return;
+    }
+
+    for (const ev of events) {
+      const d = new Date(ev.ms);
+      const dateStr = `${d.getUTCDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()]}`;
+      const daysAway = Math.round((ev.ms - now) / 86400000);
+      const daysLabel = daysAway === 0 ? 'today' : daysAway > 0 ? `+${daysAway}d` : `${daysAway}d`;
+      const isNear = Math.abs(daysAway) <= 3;
+
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;align-items:baseline;gap:8px;cursor:pointer;opacity:${ev.past ? '0.45' : '1'};padding:6px 16px;border-bottom:1px solid var(--border);transition:background 0.1s;`;
+      row.innerHTML = `
+        <span style="color:${isNear ? '#c8941a' : 'var(--text)'};font-size:12px;min-width:52px">${dateStr}</span>
+        <span style="color:var(--muted);font-size:11px;min-width:30px">${daysLabel}</span>
+        <span style="color:${ev.col};font-size:12px">${ev.transit}</span>
+        <span style="color:var(--muted);font-size:11px">${ev.asp}</span>
+        <span style="color:var(--text);font-size:12px">${ev.natal}</span>
+      `;
+      row.addEventListener('mouseenter', () => row.style.background = 'var(--bg2)');
+      row.addEventListener('mouseleave', () => row.style.background = '');
+      row.addEventListener('click', () => {
+        simMs = ev.ms;
+        lastRealMs = Date.now();
+        if (!paused) { paused = true; document.getElementById('pause-btn').textContent = '▶'; }
+        requestRedraw();
+      });
+      list.appendChild(row);
+    }
+  }, 50);
+}
+
+function toggleLifeTransits() {
+  const body = document.getElementById('life-transits-body');
+  const arrow = document.getElementById('life-transits-arrow');
+  const open = body.style.display === 'none';
+  body.style.display = open ? 'block' : 'none';
+  arrow.style.transform = open ? 'rotate(180deg)' : '';
+}
+
+function renderLifeTransits() {
+  const list = document.getElementById('life-transits-list');
+  list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">Calculating…</div>';
+
+  // Defer to avoid blocking UI
+  setTimeout(() => {
+    const events = [];
+    const now = Date.now();
+
+    for (const tr of LIFE_TRANSITS) {
+      const idx = PLANETS.findIndex(p => p.name === tr.planet);
+      if (idx < 0) continue;
+      if (tr.planet === 'Chiron' && !showChiron) continue;
+      const natalLon = cachedNatalLons[idx];
+      const dates = findTransitDates(natalLon, tr.planet, tr.angle);
+      for (const ms of dates) {
+        events.push({ ms, label: tr.label, desc: tr.desc, planet: tr.planet, past: ms < now });
+      }
+    }
+
+    events.sort((a, b) => a.ms - b.ms);
+
+    list.innerHTML = '';
+    if (!events.length) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:12px">No transits found in range</div>';
+      return;
+    }
+
+    for (const ev of events) {
+      const d = new Date(ev.ms);
+      const dateStr = `${d.getUTCFullYear()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()]}`;
+      const age = Math.round((ev.ms - natalMs) / (365.25 * 86400000));
+      const isPast = ev.past;
+      const isNear = !isPast && ev.ms - now < 2 * 365.25 * 86400000;
+
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;align-items:baseline;gap:10px;cursor:pointer;opacity:${isPast ? '0.35' : '1'};padding:7px 16px;border-bottom:1px solid var(--border);transition:background 0.1s;`;
+      row.addEventListener('mouseenter', () => row.style.background = 'var(--bg2)');
+      row.addEventListener('mouseleave', () => row.style.background = '');
+      row.innerHTML = `
+        <span style="color:${isNear ? '#c8941a' : 'var(--text)'};font-size:13px;min-width:80px">${dateStr}</span>
+        <span style="color:var(--muted);font-size:11px;min-width:32px">age ${age}</span>
+        <span style="color:${isNear ? '#c8941a' : 'var(--text)'};font-size:12px;flex:1">${ev.label}</span>
+      `;
+      row.title = ev.desc;
+      row.addEventListener('click', () => {
+        simMs = ev.ms;
+        lastRealMs = Date.now();
+        if (!paused) { paused = true; document.getElementById('pause-btn').textContent = '▶'; }
+        requestRedraw();
+      });
+      list.appendChild(row);
+    }
+  }, 50);
 }
 let rafId = null;
 let needsRedraw = false;
