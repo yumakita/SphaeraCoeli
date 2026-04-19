@@ -84,11 +84,11 @@
     position: relative;
     display: inline-block;
     cursor: pointer;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--muted);
     transition: border-color 0.15s;
     user-select: none;
   }
-  .csel:hover { border-bottom-color: #6e6a60; }
+  .csel:hover { border-bottom-color: var(--text); }
   .csel-label {
     font-family: 'Courier New', monospace;
     font-size: 20px;
@@ -454,8 +454,8 @@
         <span class="csel-label" id="lbl-speed">1h/s</span>
         <div class="csel-dropdown" id="dd-speed"></div>
       </div>
-      <button class="ctrl-btn" id="pause-btn" onclick="togglePause()">⏸</button>
-      <button class="ctrl-btn" onclick="resetToNow()">Now</button>
+      <button class="ctrl-btn" id="pause-btn" onclick="togglePause()">PAUSE</button>
+      <button class="ctrl-btn" onclick="resetToNow()">NOW</button>
     </div>
     <div class="ctrl-group">
       <button class="ctrl-btn" id="natal-toggle" onclick="toggleNatal()" style="border-color:#6a9acc !important;color:#6a9acc !important">Natal</button>
@@ -488,6 +488,10 @@
           <span class="csel-label" id="lbl-natal-tz" style="color:#6a9acc;font-size:12px">London</span>
           <div class="csel-dropdown" id="dd-natal-tz"></div>
         </div>
+        <span style="color:#3a64a8;font-size:11px;margin-left:4px;font-family:'Courier New',monospace">or</span>
+        <input id="natal-coords" type="text" placeholder="lat, lon" spellcheck="false"
+          style="background:none;border:none;border-bottom:1px solid #3a64a8;color:#6a9acc;font-family:'Courier New',monospace;font-size:11px;width:100px;outline:none;padding:2px 4px;margin-left:2px;"
+          oninput="parseNatalCoords(this.value)">
       </div>
     </div>
   </div>
@@ -1847,7 +1851,34 @@ document.getElementById('lbl-tz').textContent = TZ_CITIES.find(c => c.offset ===
   } catch(e) {}
 })();
 
-let natalTzOffsetHours = 0;
+let natalLat = null;
+let natalLon = null;
+
+function parseNatalCoords(val) {
+  const match = val.trim().match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+  if (match) {
+    natalLat = parseFloat(match[1]);
+    natalLon = parseFloat(match[2]);
+    const lonOffsetHrs = natalLon / 15;
+    let best = TZ_CITIES[10];
+    let bestDiff = Infinity;
+    for (const c of TZ_CITIES) {
+      const diff = Math.abs(c.offset - lonOffsetHrs);
+      if (diff < bestDiff) { bestDiff = diff; best = c; }
+    }
+    natalTzOffsetHours = best.offset;
+    document.getElementById('lbl-natal-tz').textContent = best.label;
+    // Fade out city dropdown since coords take precedence
+    document.getElementById('csel-natal-tz').style.opacity = '0.3';
+    document.getElementById('csel-natal-tz').style.pointerEvents = 'none';
+    applyNatalDate();
+  } else if (val.trim() === '') {
+    // Restore city dropdown if coords cleared
+    natalLat = null; natalLon = null;
+    document.getElementById('csel-natal-tz').style.opacity = '1';
+    document.getElementById('csel-natal-tz').style.pointerEvents = 'auto';
+  }
+}
 
 makeCsel('csel-natal-tz', 'dd-natal-tz', 'lbl-natal-tz', tzVals,
   () => TZ_CITIES.findIndex(c => c.offset === natalTzOffsetHours),
@@ -1872,7 +1903,7 @@ function speedMultiplier() { return currentSpeedMult; }
 
 function togglePause() {
   paused = !paused;
-  document.getElementById('pause-btn').textContent = paused ? '▶' : '⏸';
+  document.getElementById('pause-btn').textContent = paused ? 'PLAY' : 'PAUSE';
   if (!paused) { lastRealMs = Date.now(); loop(); }
   else requestRedraw();
 }
@@ -1882,7 +1913,7 @@ function resetToNow() {
   lastRealMs = Date.now();
   if (!paused) {
     paused = true;
-    document.getElementById('pause-btn').textContent = '▶';
+    document.getElementById('pause-btn').textContent = 'PLAY';
   }
   requestRedraw();
 }
