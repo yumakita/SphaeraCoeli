@@ -491,7 +491,7 @@
 
 </main>
 
-<footer><span id="ephem-status" style="opacity:0.5;font-size:12px">Positions: Keplerian with Meeus lunar correction (~0.3° Moon accuracy)</span><br><br>Planetary positions computed from J2000 Keplerian elements — approximate, for contemplative use.<br><br>Geocentric, as per Western tropical astrology. Vedic (Jyotish) uses the same model with a sidereal shift of ~23–24° (the ayanamsha) for precession. Kepler (1571–1630) proved orbits are ellipses, not circles, from Tycho Brahe's naked-eye observations — a break from two millennia of circular astronomy. J2000 elements are accurate to within ~1° for outer planets over short spans, but degrade significantly beyond ±200 years from the present. The Moon is least accurate throughout. For precision work, use the Swiss Ephemeris.</footer>
+<footer><span id="ephem-status" style="opacity:0.5;font-size:12px">Positions: Keplerian with Meeus lunar correction (~0.3° Moon accuracy)</span><br><br>Planetary positions computed from J2000 Keplerian elements — approximate, for contemplative use.<br><br>Geocentric, as per Western tropical astrology. Kepler (1571–1630) proved orbits are ellipses, not circles, from Tycho Brahe's naked-eye observations — a break from two millennia of circular astronomy. J2000 elements are accurate to within ~1° for outer planets over short spans, but degrade significantly beyond ±200 years from the present. The Moon is least accurate throughout. For precision work, use the Swiss Ephemeris.</footer>
 
 <script>
 // ── Astronomical constants & planet data ─────────────────────────────────────
@@ -793,7 +793,22 @@ let majorTransits = false;
 let showChiron = false;
 let natalMs = Date.now();
 let cachedNatalLons = null;
+let cachedLons = null;
+let cachedSignGlow = new Array(12).fill(0);
 const aspectEnabled = { Conjunction: true, Opposition: true, Trine: true, Square: true, Sextile: true };
+
+function updateSignGlow(lons) {
+  for (let i = 0; i < 12; i++) {
+    const signCentre = i * 30 + 15;
+    let sg = 0;
+    for (const lon of lons) {
+      let diff = Math.abs(lon - signCentre);
+      if (diff > 180) diff = 360 - diff;
+      sg = Math.max(sg, diff <= 10 ? 1 : Math.max(0, 1 - (diff - 10) / 5));
+    }
+    cachedSignGlow[i] = Math.min(1, sg);
+  }
+}
 
 // Initialise cached lons now that geocentricLon is defined
 cachedLons = computeLons(simMs);
@@ -973,12 +988,13 @@ window.addEventListener('mousemove', e => {
   tlLastTime = now;
   const totalDx = e.clientX - tlDragStartX;
   simMs = tlDragStartMs - totalDx * TL_ZOOM_CONFIG[tlZoom].msPerPx;
+  requestRedraw();
 });
 
 window.addEventListener('mouseup', () => {
   if (!tlDragging) return;
   tlDragging = false;
-  if (Math.abs(tlVelocity) > 0.01) tlCoasting = true;
+  if (Math.abs(tlVelocity) > 0.01) { tlCoasting = true; requestRedraw(); }
 });
 
 // Touch support
@@ -1004,21 +1020,30 @@ window.addEventListener('touchmove', e => {
   tlLastTime = now;
   const totalDx = e.touches[0].clientX - tlDragStartX;
   simMs = tlDragStartMs - totalDx * TL_ZOOM_CONFIG[tlZoom].msPerPx;
+  requestRedraw();
   e.preventDefault();
 }, { passive: false });
 
 window.addEventListener('touchend', () => {
   if (!tlDragging) return;
   tlDragging = false;
-  if (Math.abs(tlVelocity) > 0.01) tlCoasting = true;
+  if (Math.abs(tlVelocity) > 0.01) { tlCoasting = true; requestRedraw(); }
 });
 
-// Momentum tick — called from main loop
 function tickTimeline(dt) {
   if (!tlCoasting) return;
   simMs += tlVelocity * dt;
-  tlVelocity *= 0.92; // friction — decay per ms tick
-  if (Math.abs(tlVelocity) < 0.001) { tlVelocity = 0; tlCoasting = false; }
+  tlVelocity *= 0.92;
+  if (Math.abs(tlVelocity) < 0.001) {
+    tlVelocity = 0;
+    tlCoasting = false;
+    // coasting done — stop loop if still paused
+  }
+}
+
+// Keep loop alive while coasting even if paused
+function shouldKeepLooping() {
+  return !paused || tlCoasting || tlDragging;
 }
 
 window.addEventListener('resize', resizeTimeline);
@@ -1089,35 +1114,23 @@ function draw() {
     // Sign symbol — toward inner edge of ring
     const am = toRad(-90 + i * 30 + 15);
     const gr = R_SIGN_IN + 20;
-    // Glow: full brightness in middle 20° of sign, fade over 5° at each cusp
-    const signCentre = i * 30 + 15;
-    let sg = 0;
-    for (const lon of lons) {
-      let diff = Math.abs(lon - signCentre);
-      if (diff > 180) diff = 360 - diff;
-      // Within 10° of centre = full, fade to zero over next 5°
-      const contribution = diff <= 10 ? 1 : Math.max(0, 1 - (diff - 10) / 5);
-      sg = Math.max(sg, contribution);
-    }
-    sg = Math.max(0, Math.min(1, sg));
+    // Use precomputed sign glow
+    const sg = cachedSignGlow[i];
 
     const gx = CX + gr * Math.cos(am);
     const gy = CY + gr * Math.sin(am);
 
     ctx.save();
     ctx.translate(gx, gy);
+    // Glow via lineWidth only — no blur
     if (sg > 0.05) {
-      ctx.filter = 'blur(10px)';
       ctx.strokeStyle = '#9a9690';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 1.3 + sg * 1.5;
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      ctx.globalAlpha = sg * (0.3 + 0.1 * pulse);
+      ctx.globalAlpha = sg * (0.4 + 0.15 * pulse);
       SIGN_DRAW[i](ctx, 16);
-      SIGN_DRAW[i](ctx, 16);
-      ctx.filter = 'none';
       ctx.globalAlpha = 1;
     }
-    // Base colour: interpolate from muted to bright only when sg > 0
     const symR = parseInt(muted.slice(1,3)||'6e',16);
     const symG = parseInt(muted.slice(3,5)||'6a',16);
     const symB = parseInt(muted.slice(5,7)||'60',16);
@@ -1141,18 +1154,7 @@ function draw() {
     let rot = nameAng + Math.PI / 2;
     if (nameAng > 0 && nameAng < Math.PI) rot += Math.PI;
     ctx.rotate(rot);
-    if (sg > 0.05) {
-      ctx.filter = 'blur(9px)';
-      ctx.font = '10px Georgia, serif';
-      ctx.fillStyle = '#9a9690';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.globalAlpha = sg * (0.35 + 0.1 * pulse);
-      ctx.fillText(SIGNS[i], 0, 0);
-      ctx.fillText(SIGNS[i], 0, 0);
-      ctx.filter = 'none';
-      ctx.globalAlpha = 1;
-    }
-    ctx.font = '10px Georgia, serif';
+    ctx.font = sg > 0.05 ? 'bold 10px Georgia, serif' : '10px Georgia, serif';
     ctx.fillStyle = sg > 0.05
       ? `rgb(${Math.round(symR + sg*(212-symR))},${Math.round(symG + sg*(208-symG))},${Math.round(symB + sg*(200-symB))})`
       : muted;
@@ -1169,21 +1171,33 @@ function draw() {
   ctx.fillStyle = lightMode ? '#ede9e0' : '#050504'; ctx.fill();
   ctx.strokeStyle = lightMode ? '#2c2820' : '#707070'; ctx.lineWidth = 1; ctx.stroke();
 
-  // ── Degree ticks — drawn on top of inner disc edge, pointing inward
-  for (let deg = 0; deg < 360; deg++) {
+  // ── Degree ticks — batched into 3 path groups for performance
+  const r1 = R_SIGN_IN - 3;
+  ctx.beginPath();
+  for (let deg = 0; deg < 360; deg += 10) {
     const ta = toRad(-90 + deg);
-    const isTen  = deg % 10 === 0;
-    const isFive = deg % 5 === 0 && !isTen;
-    const tLen = isTen ? 9 : isFive ? 6 : 3;
-    const r1 = R_SIGN_IN - 3;
-    const r2 = r1 - tLen;
-    ctx.beginPath();
     ctx.moveTo(CX + r1*Math.cos(ta), CY + r1*Math.sin(ta));
-    ctx.lineTo(CX + r2*Math.cos(ta), CY + r2*Math.sin(ta));
-    ctx.strokeStyle = isTen ? (lightMode ? '#2c2820' : '#707070') : muted;
-    ctx.lineWidth = isTen ? 1 : isFive ? 0.7 : 0.5;
-    ctx.stroke();
+    ctx.lineTo(CX + (r1-9)*Math.cos(ta), CY + (r1-9)*Math.sin(ta));
   }
+  ctx.strokeStyle = lightMode ? '#2c2820' : '#707070'; ctx.lineWidth = 1; ctx.stroke();
+
+  ctx.beginPath();
+  for (let deg = 5; deg < 360; deg += 10) {
+    const ta = toRad(-90 + deg);
+    ctx.moveTo(CX + r1*Math.cos(ta), CY + r1*Math.sin(ta));
+    ctx.lineTo(CX + (r1-6)*Math.cos(ta), CY + (r1-6)*Math.sin(ta));
+  }
+  ctx.strokeStyle = muted; ctx.lineWidth = 0.7; ctx.stroke();
+
+  ctx.beginPath();
+  for (let deg = 0; deg < 360; deg++) {
+    if (deg % 5 !== 0) {
+      const ta = toRad(-90 + deg);
+      ctx.moveTo(CX + r1*Math.cos(ta), CY + r1*Math.sin(ta));
+      ctx.lineTo(CX + (r1-3)*Math.cos(ta), CY + (r1-3)*Math.sin(ta));
+    }
+  }
+  ctx.strokeStyle = muted; ctx.lineWidth = 0.5; ctx.stroke();
 
   // ── Planet ring guide (faint)
   ctx.beginPath(); ctx.arc(CX, CY, R_PLANET, 0, Math.PI*2);
@@ -1226,19 +1240,6 @@ function draw() {
             const offset = (a * 3 + b) * 0.7;
             const aspPulse = 0.5 + 0.5 * Math.sin(performance.now() / 500 + offset);
 
-            // Glow pass
-            ctx.save();
-            ctx.filter = `blur(4px)`;
-            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
-            ctx.strokeStyle = asp.col;
-            ctx.lineWidth = 6;
-            ctx.globalAlpha = (0.2 + 0.35 * aspPulse) * orbFade * natalDim;
-            ctx.setLineDash(asp.dash);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.restore();
-
-            // Sharp pass
             ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
             ctx.strokeStyle = asp.col;
             ctx.lineWidth = 1.5;
@@ -1277,13 +1278,6 @@ function draw() {
             const y1 = CY + R_ASPECT * Math.sin(angA);
             const x2 = CX + R_ASPECT * Math.cos(angB);
             const y2 = CY + R_ASPECT * Math.sin(angB);
-            ctx.save();
-            ctx.filter = 'blur(4px)';
-            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
-            ctx.strokeStyle = asp.col; ctx.lineWidth = 6;
-            ctx.globalAlpha = (0.2 + 0.35 * aspPulse) * orbFade;
-            ctx.setLineDash(asp.dash); ctx.stroke(); ctx.setLineDash([]);
-            ctx.restore();
             ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
             ctx.strokeStyle = asp.col; ctx.lineWidth = 1.5;
             ctx.globalAlpha = (0.35 + 0.5 * aspPulse) * orbFade;
@@ -1326,19 +1320,6 @@ function draw() {
             // Always use aspect colours for transit-to-natal lines
             const tCol = asp.col;
 
-            // Glow pass
-            ctx.save();
-            ctx.filter = 'blur(4px)';
-            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
-            ctx.strokeStyle = tCol;
-            ctx.lineWidth = 6;
-            ctx.globalAlpha = (0.2 + 0.35 * aspPulse) * orbFade * transitPlanetWeight;
-            ctx.setLineDash(asp.dash);
-            ctx.stroke();
-            ctx.setLineDash([]);
-            ctx.restore();
-
-            // Sharp pass
             ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
             ctx.strokeStyle = tCol;
             ctx.lineWidth = 1.5;
@@ -1407,22 +1388,7 @@ function draw() {
     ctx.strokeStyle = p.col + '88'; ctx.lineWidth = 1.2; ctx.stroke();
     ctx.restore();
 
-    // Shape-accurate glow
-    const glowAlpha = dimmed ? 0 : isHovered ? 0.85 : 0.5 + 0.2 * pulse;
-    const blurAmt   = isHovered ? 14 : 10;
-    if (glowAlpha > 0) {
-      ctx.save();
-      ctx.filter = `blur(${blurAmt}px)`;
-      ctx.font = `${fontSize}px 'Segoe UI Symbol', 'Apple Symbols', 'DejaVu Sans', sans-serif`;
-      ctx.fillStyle = p.col;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.globalAlpha = glowAlpha;
-      ctx.fillText(p.sym, px, py);
-      ctx.fillText(p.sym, px, py);
-      ctx.restore();
-    }
-
-    // Sharp glyph
+    // Sharp glyph — size and alpha communicate hover/dim state, no blur needed
     ctx.save();
     ctx.globalAlpha = dimAlpha;
     ctx.font = `${fontSize}px 'Segoe UI Symbol', 'Apple Symbols', 'DejaVu Sans', sans-serif`;
@@ -1456,19 +1422,8 @@ function draw() {
       ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(tx, ty);
       ctx.strokeStyle = '#3a64a866'; ctx.lineWidth = 0.8; ctx.stroke();
 
-      // Glow
+      // Sharp glyph in blue — no blur, use size for differentiation
       const baseSize = (p.r + 4) * 3;
-      ctx.save();
-      ctx.filter = 'blur(10px)';
-      ctx.font = `${baseSize}px 'Segoe UI Symbol','Apple Symbols','DejaVu Sans',sans-serif`;
-      ctx.fillStyle = '#4a84c8';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.globalAlpha = 0.5 + 0.2 * pulse;
-      ctx.fillText(p.sym, px, py);
-      ctx.fillText(p.sym, px, py);
-      ctx.restore();
-
-      // Sharp glyph in blue
       ctx.font = `${baseSize}px 'Segoe UI Symbol','Apple Symbols','DejaVu Sans',sans-serif`;
       ctx.fillStyle = '#6a9acc';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1480,20 +1435,11 @@ function draw() {
 
   // ── Centre — Earth dot
   const earthHovered = activePlanet === 'earth';
-  const earthR = earthHovered ? R_CENTER * 1.1 : R_CENTER * 0.6;
+  const earthR = earthHovered ? R_CENTER * 1.2 : R_CENTER * 0.7;
 
-  // Glow — large and soft
-  ctx.save();
-  ctx.filter = `blur(${earthHovered ? 14 : 10}px)`;
-  ctx.beginPath(); ctx.arc(CX, CY, earthR * 3, 0, Math.PI*2);
-  ctx.fillStyle = '#2a5aae';
-  ctx.globalAlpha = earthHovered ? 0.5 : 0.3;
-  ctx.fill();
-  ctx.restore();
-
-  // Single solid dot — small
+  // Solid dot — larger on hover
   ctx.beginPath(); ctx.arc(CX, CY, earthR, 0, Math.PI*2);
-  ctx.fillStyle = '#4a7acc'; ctx.fill();
+  ctx.fillStyle = earthHovered ? '#6a9acc' : '#4a7acc'; ctx.fill();
 
   // ── Update planet bar
 
@@ -1627,10 +1573,11 @@ canvas.addEventListener('mousemove', e => {
   const hit = findHit(mx, my);
   hoveredPlanet = hit?.type === 'transit' ? hit.pp.p : hit?.type === 'earth' ? 'earth' : null;
   canvas.style.cursor = hit ? 'pointer' : 'default';
-  if (!hit) { tip.style.opacity = '0'; return; }
+  if (!hit) { tip.style.opacity = '0'; requestRedraw(); return; }
   if (hit.type === 'transit') showTip(hit.pp, false);
   else if (hit.type === 'natal') showNatalTip(hit.nn);
   else showTip(null, true);
+  requestRedraw();
 });
 
 canvas.addEventListener('click', e => {
@@ -1654,6 +1601,7 @@ canvas.addEventListener('click', e => {
   } else {
     selectedPlanet = null; hoveredPlanet = null; tip.style.opacity = '0';
   }
+  requestRedraw();
 });
 
 canvas.addEventListener('mouseleave', () => {
@@ -1679,12 +1627,14 @@ function speedMultiplier() { return currentSpeedMult; }
 function togglePause() {
   paused = !paused;
   document.getElementById('pause-btn').textContent = paused ? '▶' : '⏸';
-  if (!paused) lastRealMs = Date.now();
+  if (!paused) { lastRealMs = Date.now(); loop(); }
+  else requestRedraw();
 }
 
 function resetToNow() {
   simMs = Date.now();
   lastRealMs = Date.now();
+  requestRedraw();
 }
 
 function toggleAllAspects() {
@@ -1770,7 +1720,7 @@ makeCsel('csel-day',   'dd-day',   'lbl-day',   dayVals,   () => _di, i => { _di
 makeCsel('csel-speed', 'dd-speed', 'lbl-speed',
   SPEED_OPTIONS.map(o => o.label),
   () => SPEED_OPTIONS.findIndex(o => o.mult === currentSpeedMult),
-  i => { currentSpeedMult = SPEED_OPTIONS[i].mult; },
+  i => { currentSpeedMult = SPEED_OPTIONS[i].mult; if (!paused) { lastRealMs = Date.now(); if (!rafId) loop(); } requestRedraw(); },
   i => { document.getElementById('lbl-speed').textContent = SPEED_OPTIONS[i].label; }
 );
 // Set initial label to match default speed
@@ -1780,6 +1730,7 @@ function applyDate() {
   if (selUpdating) return;
   const target = Date.UTC(1800 + _yi, _mi, _di + 1);
   if (!isNaN(target)) { simMs = target; if (!paused) togglePause(); }
+  requestRedraw();
 }
 
 function syncLabels() {
@@ -1805,6 +1756,7 @@ let _nyi = 0, _nmi = 0, _ndi = 0, _nhi = 0, _nmni = 0;
 function applyNatalDate() {
   natalMs = Date.UTC(1800 + _nyi, _nmi, _ndi + 1, _nhi, _nmni * 5);
   cachedNatalLons = computeLons(natalMs);
+  requestRedraw();
 }
 
 function syncNatalLabels() {
@@ -1835,16 +1787,19 @@ syncNatalLabels();
 function toggleChiron() {
   showChiron = !showChiron;
   document.getElementById('asp-chiron').classList.toggle('active', showChiron);
+  requestRedraw();
 }
 
 function toggleMajorTransits() {
   majorTransits = !majorTransits;
   document.getElementById('asp-major-transits').classList.toggle('active', majorTransits);
+  requestRedraw();
 }
 
 function toggleNatalOnly() {
   natalOnly = !natalOnly;
   document.getElementById('asp-natal-only').classList.toggle('active', natalOnly);
+  requestRedraw();
 }
 
 function toggleNatal() {
@@ -1856,8 +1811,22 @@ function toggleNatal() {
   nd.style.opacity = showNatal ? '1' : '0.4';
   nd.style.pointerEvents = showNatal ? 'auto' : 'none';
   if (showNatal) cachedNatalLons = computeLons(natalMs);
+  requestRedraw();
 }
+let rafId = null;
+let needsRedraw = false;
+
+function requestRedraw() {
+  needsRedraw = true;
+  if (!rafId) rafId = requestAnimationFrame(loop);
+}
+
+let lastLonCalcMs = -Infinity;
+let lastSimMsForLons = -Infinity;
+const LON_RECALC_INTERVAL = 80; // ms real time between recalculations
+
 function loop() {
+  rafId = null;
   const now = Date.now();
   const elapsed = now - lastRealMs;
   if (!paused) {
@@ -1865,11 +1834,26 @@ function loop() {
   }
   tickTimeline(elapsed);
   lastRealMs = now;
-  cachedLons = computeLons(simMs);
-  if (showNatal) cachedNatalLons = computeLons(natalMs);
+
+  // Only recompute longitudes if sim time changed meaningfully or enough real time passed
+  const simChanged = Math.abs(simMs - lastSimMsForLons) > 1000;
+  const timeElapsed = now - lastLonCalcMs > LON_RECALC_INTERVAL;
+  if (simChanged || timeElapsed || !cachedLons) {
+    cachedLons = computeLons(simMs);
+    if (showNatal) cachedNatalLons = computeLons(natalMs);
+    updateSignGlow(cachedLons);
+    lastLonCalcMs = now;
+    lastSimMsForLons = simMs;
+  }
+
   draw();
   drawTimeline();
-  requestAnimationFrame(loop);
+  needsRedraw = false;
+  if (shouldKeepLooping()) {
+    rafId = requestAnimationFrame(loop);
+  } else {
+    rafId = null;
+  }
 }
 
 loop();
