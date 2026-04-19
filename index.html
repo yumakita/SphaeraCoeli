@@ -25,7 +25,21 @@
     --border: rgba(0,0,0,0.1);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  button { -webkit-appearance: none; -moz-appearance: none; appearance: none; -webkit-tap-highlight-color: transparent; background: none; border: none; }
+  button {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: rgba(0,0,0,0);
+    -webkit-touch-callout: none;
+    outline: none !important;
+    border: none;
+    background: none;
+    cursor: pointer;
+  }
+  button:focus, button:focus-visible, button:focus-within {
+    outline: none !important;
+    box-shadow: none !important;
+  }
   body {
     background: var(--bg);
     color: var(--text);
@@ -194,7 +208,7 @@
     font-family: 'Courier New', monospace;
   }
   .ctrl-group { display: flex; align-items: center; gap: 8px; }
-  .ctrl-label { text-transform: uppercase; font-size: 10px; letter-spacing: 0.1em; font-family: 'Courier New', monospace; }
+  .ctrl-label { text-transform: uppercase; font-size: 13px; letter-spacing: 0.08em; font-family: 'Courier New', monospace; color: var(--muted); }
   input[type=range] {
     -webkit-appearance: none;
     width: 100px;
@@ -223,24 +237,26 @@
     transition: all 0.15s;
   }
   button.ctrl-btn {
-    background: #080807;
-    border: 1px solid rgba(255,255,255,0.5);
-    color: #d4d0c8;
+    background: #080807 !important;
+    border: 1px solid rgba(255,255,255,0.5) !important;
+    color: #d4d0c8 !important;
     padding: 5px 14px;
     border-radius: 20px;
     font-size: 14px;
     cursor: pointer;
     letter-spacing: 0.05em;
-    transition: all 0.2s;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
     font-family: 'Courier New', monospace;
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
-    -webkit-tap-highlight-color: transparent;
-    outline: none;
+    -webkit-tap-highlight-color: rgba(0,0,0,0);
+    outline: none !important;
+    box-shadow: none !important;
   }
-  button.ctrl-btn:hover { border-color: #fff; color: #fff; }
-  button.ctrl-btn:active { background: #1a1917; }
+  button.ctrl-btn:hover { border-color: #fff !important; color: #fff !important; }
+  button.ctrl-btn:active { background: #1a1917 !important; }
+  button.ctrl-btn:focus { outline: none !important; box-shadow: none !important; background: #080807 !important; }
   #speed-val { min-width: 52px; color: var(--text); font-family: 'Courier New', monospace; font-size: 13px; }
 
   #planet-bar {
@@ -427,6 +443,10 @@
       </div>
       <span class="date-sep" style="margin-left:8px"></span>
       <span id="time-utc" style="font-family:'Courier New',monospace;font-size:13px;color:var(--muted);letter-spacing:0.05em">00:00</span>
+      <div class="csel" id="csel-tz" style="margin-left:4px">
+        <span class="csel-label" id="lbl-tz" style="font-size:12px">UTC+0</span>
+        <div class="csel-dropdown" id="dd-tz"></div>
+      </div>
     </div>
     <div class="ctrl-group">
       <span class="ctrl-label">Speed</span>
@@ -438,7 +458,7 @@
       <button class="ctrl-btn" onclick="resetToNow()">Now</button>
     </div>
     <div class="ctrl-group">
-      <button class="ctrl-btn" id="natal-toggle" onclick="toggleNatal()" style="border-color:#3a64a8;color:#6a9acc">Natal</button>
+      <button class="ctrl-btn" id="natal-toggle" onclick="toggleNatal()" style="border-color:#6a9acc !important;color:#6a9acc !important">Natal</button>
       <div id="natal-date" style="display:flex;align-items:center;gap:4px;opacity:0.4;pointer-events:none">
         <div class="csel" id="csel-natal-year" style="border-bottom-color:#3a64a8">
           <span class="csel-label" id="lbl-natal-year" style="color:#6a9acc">—</span>
@@ -463,6 +483,10 @@
         <div class="csel" id="csel-natal-min" style="border-bottom-color:#3a64a8">
           <span class="csel-label" id="lbl-natal-min" style="color:#6a9acc">—</span>
           <div class="csel-dropdown" id="dd-natal-min"></div>
+        </div>
+        <div class="csel" id="csel-natal-tz" style="border-bottom-color:#3a64a8;margin-left:4px">
+          <span class="csel-label" id="lbl-natal-tz" style="color:#6a9acc;font-size:12px">London</span>
+          <div class="csel-dropdown" id="dd-natal-tz"></div>
         </div>
       </div>
     </div>
@@ -502,6 +526,7 @@
     <button class="asp-btn" id="asp-chiron" onclick="toggleChiron()" style="--ac:#7a9a70">Chiron</button>
     <div class="asp-divider"></div>
     <button class="asp-btn" id="asp-degrees" onclick="toggleDegrees()" style="--ac:#9a9690">Degrees</button>
+    <button class="asp-btn active" id="asp-clock" onclick="toggleClock()" style="--ac:#4a7acc">Clock</button>
   </div>
 
   <div id="life-transits" style="display:none;max-width:640px;width:100%;margin-top:12px;flex-direction:column;gap:8px;">
@@ -835,6 +860,7 @@ let natalOnly = false;
 let majorTransits = false;
 let showChiron = true;
 let showDegrees = true;
+let showClock = true;
 let natalMs = Date.now();
 let cachedNatalLons = null;
 let cachedLons = null;
@@ -1087,7 +1113,7 @@ function tickTimeline(dt) {
 
 // Keep loop alive while coasting even if paused
 function shouldKeepLooping() {
-  return !paused || tlCoasting || tlDragging || currentSpeedMult === 1;
+  return !paused || tlCoasting || tlDragging || (currentSpeedMult === 1 && showClock);
 }
 
 window.addEventListener('resize', resizeTimeline);
@@ -1523,11 +1549,10 @@ function draw() {
   }
 
   // ── Centre — Earth dot + clock hands in realtime mode
-  const earthHovered = activePlanet === 'earth';
-  const earthR = earthHovered ? R_CENTER * 0.7 : R_CENTER * 0.4;
+  const earthR = R_CENTER * 0.4;
 
   // Clock hands — only in realtime speed
-  if (currentSpeedMult === 1) {
+  if (currentSpeedMult === 1 && showClock) {
     const d = new Date(simMs);
     const secs = d.getUTCSeconds() + d.getUTCMilliseconds() / 1000;
     const mins = d.getUTCMinutes() + secs / 60;
@@ -1598,7 +1623,7 @@ function draw() {
 
   // Solid dot
   ctx.beginPath(); ctx.arc(CX, CY, earthR, 0, Math.PI*2);
-  ctx.fillStyle = earthHovered ? '#6a9acc' : '#4a7acc'; ctx.fill();
+  ctx.fillStyle = '#4a7acc'; ctx.fill();
 
   // ── Update planet bar
 
@@ -1610,16 +1635,18 @@ function draw() {
       if (nn) showNatalTip(nn);
     } else {
       const selPP = planetPositions.find(pp => pp.p === selectedPlanet);
-      if (selPP) showTip(selPP, false);
+      if (selPP) showTip(selPP);
     }
   }
 
   // ── Time display
   const d = new Date(simMs);
   updateDrums(d.getUTCFullYear(), d.getUTCMonth()+1, d.getUTCDate());
-  const hr = String(d.getUTCHours()).padStart(2,'0');
-  const mn = String(d.getUTCMinutes()).padStart(2,'0');
-  document.getElementById('time-utc').textContent = `${hr}:${mn} UTC`;
+  const localMs = simMs + tzOffsetHours * 3600000;
+  const dl = new Date(localMs);
+  const hr = String(dl.getUTCHours()).padStart(2,'0');
+  const mn = String(dl.getUTCMinutes()).padStart(2,'0');
+  document.getElementById('time-utc').textContent = `${hr}:${mn}`;
 }
 
 
@@ -1642,40 +1669,31 @@ const tip = document.getElementById('tooltip');
 let selectedPlanet = null; // locked by click
 let natalPositions = [];
 
-function showTip(found, earthHit) {
-  if (earthHit && !found) {
-    tip.innerHTML = `
-      <span class="t-sym" style="color:#2a5a9e">⊕</span>
-      <span class="t-name" style="color:#a0c4e8">You are here</span>
-    `;
-    tip.style.opacity = '1';
-  } else if (found) {
-    const idx = PLANETS.indexOf(found.p);
-    const lons = cachedLons;
-    const aspStrs = [];
-    PLANETS.forEach((q, j) => {
-      if (j === idx) return;
-      if (currentSpeedMult >= 604800 && q.name === 'Moon') return;
-      const diff = Math.abs(lons[idx] - lons[j]);
-      const d = Math.min(diff, 360 - diff);
-      for (const asp of ASPECTS) {
-        if (Math.abs(d - asp.angle) < asp.orb) {
-          aspStrs.push(`<span style="color:${asp.col}">${asp.name} ${q.name}</span>`);
-          break;
-        }
+function showTip(found) {
+  if (!found) { tip.style.opacity = '0'; return; }
+  const idx = PLANETS.indexOf(found.p);
+  const lons = cachedLons;
+  const aspStrs = [];
+  PLANETS.forEach((q, j) => {
+    if (j === idx) return;
+    if (currentSpeedMult >= 604800 && q.name === 'Moon') return;
+    const diff = Math.abs(lons[idx] - lons[j]);
+    const d = Math.min(diff, 360 - diff);
+    for (const asp of ASPECTS) {
+      if (Math.abs(d - asp.angle) < asp.orb) {
+        aspStrs.push(`<span style="color:${asp.col}">${asp.name} ${q.name}</span>`);
+        break;
       }
-    });
-    const signName = SIGNS[Math.floor(found.lon / 30)];
-    tip.innerHTML = `
-      <span class="t-sym" style="color:${found.p.col}">${found.p.sym}</span>
-      <span class="t-name">${found.p.name} — ${signName}</span>
-      <span class="t-pos">${signLabel(found.lon)}</span>
-      ${aspStrs.length ? `<span class="t-asp">${aspStrs.join('<br>')}</span>` : ''}
-    `;
-    tip.style.opacity = '1';
-  } else {
-    tip.style.opacity = '0';
-  }
+    }
+  });
+  const signName = SIGNS[Math.floor(found.lon / 30)];
+  tip.innerHTML = `
+    <span class="t-sym" style="color:${found.p.col}">${found.p.sym}</span>
+    <span class="t-name">${found.p.name} — ${signName}</span>
+    <span class="t-pos">${signLabel(found.lon)}</span>
+    ${aspStrs.length ? `<span class="t-asp">${aspStrs.join('<br>')}</span>` : ''}
+  `;
+  tip.style.opacity = '1';
 }
 
 function showNatalTip(nn) {
@@ -1718,9 +1736,6 @@ function findHit(mx, my) {
       if (dx*dx + dy*dy < (nn.r + 18) * (nn.r + 18)) return { type: 'natal', nn };
     }
   }
-  // Check Earth
-  const edx = mx - CX, edy = my - CY;
-  if (edx*edx + edy*edy < (R_CENTER + 14) * (R_CENTER + 14)) return { type: 'earth' };
   return null;
 }
 
@@ -1730,12 +1745,11 @@ canvas.addEventListener('mousemove', e => {
   const mx = (e.clientX - rect.left) * W / rect.width;
   const my = (e.clientY - rect.top)  * H / rect.height;
   const hit = findHit(mx, my);
-  hoveredPlanet = hit?.type === 'transit' ? hit.pp.p : hit?.type === 'earth' ? 'earth' : null;
+  hoveredPlanet = hit?.type === 'transit' ? hit.pp.p : null;
   canvas.style.cursor = hit ? 'pointer' : 'default';
   if (!hit) { tip.style.opacity = '0'; requestRedraw(); return; }
-  if (hit.type === 'transit') showTip(hit.pp, false);
+  if (hit.type === 'transit') showTip(hit.pp);
   else if (hit.type === 'natal') showNatalTip(hit.nn);
-  else showTip(null, true);
   requestRedraw();
 });
 
@@ -1746,16 +1760,15 @@ canvas.addEventListener('click', e => {
   const hit = findHit(mx, my);
 
   if (hit) {
-    const clicking = hit.type === 'transit' ? hit.pp.p : hit.type === 'natal' ? { natal: true, p: hit.nn.p } : 'earth';
+    const clicking = hit.type === 'transit' ? hit.pp.p : hit.type === 'natal' ? { natal: true, p: hit.nn.p } : null;
     const key = hit.type === 'natal' ? 'natal:' + hit.nn.p.name : clicking;
     if (selectedPlanet === key) {
       selectedPlanet = null; hoveredPlanet = null; tip.style.opacity = '0';
     } else {
       selectedPlanet = key;
       hoveredPlanet = hit.type === 'transit' ? hit.pp.p : null;
-      if (hit.type === 'transit') showTip(hit.pp, false);
+      if (hit.type === 'transit') showTip(hit.pp);
       else if (hit.type === 'natal') showNatalTip(hit.nn);
-      else showTip(null, true);
     }
   } else {
     selectedPlanet = null; hoveredPlanet = null; tip.style.opacity = '0';
@@ -1770,7 +1783,81 @@ canvas.addEventListener('mouseleave', () => {
   }
 });
 
-// ── Speed dropdown ────────────────────────────────────────────────────────────
+// ── Timezone offset ───────────────────────────────────────────────────────────
+let tzOffsetHours = 0;
+
+const TZ_CITIES = [
+  { label: 'Honolulu',      offset: -10 },
+  { label: 'Anchorage',     offset: -9  },
+  { label: 'Los Angeles',   offset: -8  },
+  { label: 'Denver',        offset: -7  },
+  { label: 'Chicago',       offset: -6  },
+  { label: 'New York',      offset: -5  },
+  { label: 'Caracas',       offset: -4  },
+  { label: 'Buenos Aires',  offset: -3  },
+  { label: 'São Paulo',     offset: -3  },
+  { label: 'Azores',        offset: -1  },
+  { label: 'London',        offset:  0  },
+  { label: 'Paris',         offset:  1  },
+  { label: 'Berlin',        offset:  1  },
+  { label: 'Cairo',         offset:  2  },
+  { label: 'Moscow',        offset:  3  },
+  { label: 'Dubai',         offset:  4  },
+  { label: 'Karachi',       offset:  5  },
+  { label: 'Mumbai',        offset:  5.5},
+  { label: 'Dhaka',         offset:  6  },
+  { label: 'Bangkok',       offset:  7  },
+  { label: 'Singapore',     offset:  8  },
+  { label: 'Beijing',       offset:  8  },
+  { label: 'Tokyo',         offset:  9  },
+  { label: 'Sydney',        offset:  10 },
+  { label: 'Auckland',      offset:  12 },
+];
+
+const tzVals = TZ_CITIES.map(c => c.label);
+
+makeCsel('csel-tz', 'dd-tz', 'lbl-tz', tzVals,
+  () => TZ_CITIES.findIndex(c => c.offset === tzOffsetHours),
+  i => { tzOffsetHours = TZ_CITIES[i].offset; },
+  i => {
+    tzOffsetHours = TZ_CITIES[i].offset;
+    document.getElementById('lbl-tz').textContent = TZ_CITIES[i].label;
+    requestRedraw();
+  }
+);
+// Set initial label
+document.getElementById('lbl-tz').textContent = TZ_CITIES.find(c => c.offset === tzOffsetHours)?.label || 'London';
+
+// Auto-detect user timezone
+(function() {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const now = new Date();
+    const offsetMin = -now.getTimezoneOffset(); // minutes offset from UTC
+    const offsetHrs = offsetMin / 60;
+    // Find closest city
+    let best = TZ_CITIES[10]; // default London
+    let bestDiff = Infinity;
+    for (const c of TZ_CITIES) {
+      const diff = Math.abs(c.offset - offsetHrs);
+      if (diff < bestDiff) { bestDiff = diff; best = c; }
+    }
+    tzOffsetHours = best.offset;
+    document.getElementById('lbl-tz').textContent = best.label;
+  } catch(e) {}
+})();
+
+let natalTzOffsetHours = 0;
+
+makeCsel('csel-natal-tz', 'dd-natal-tz', 'lbl-natal-tz', tzVals,
+  () => TZ_CITIES.findIndex(c => c.offset === natalTzOffsetHours),
+  i => { natalTzOffsetHours = TZ_CITIES[i].offset; },
+  i => {
+    natalTzOffsetHours = TZ_CITIES[i].offset;
+    document.getElementById('lbl-natal-tz').textContent = TZ_CITIES[i].label;
+    applyNatalDate();
+  }
+);
 const SPEED_OPTIONS = [
   { label: 'Realtime', mult: 1        },
   { label: '5h/s',     mult: 18000    },
@@ -1890,10 +1977,11 @@ makeCsel('csel-speed', 'dd-speed', 'lbl-speed',
 document.getElementById('lbl-speed').textContent = SPEED_OPTIONS.find(o => o.mult === currentSpeedMult).label;
 document.getElementById('asp-chiron').classList.add('active');
 document.getElementById('asp-degrees').classList.add('active');
+document.getElementById('asp-clock').classList.add('active');
 
 function applyDate() {
   if (selUpdating) return;
-  const target = Date.UTC(1800 + _yi, _mi, _di + 1);
+  const target = Date.UTC(1800 + _yi, _mi, _di + 1) - tzOffsetHours * 3600000;
   if (!isNaN(target)) { simMs = target; if (!paused) togglePause(); }
   requestRedraw();
 }
@@ -1919,7 +2007,7 @@ updateDrums(new Date().getUTCFullYear(), new Date().getUTCMonth()+1, new Date().
 let _nyi = 0, _nmi = 0, _ndi = 0, _nhi = 0, _nmni = 0;
 
 function applyNatalDate() {
-  natalMs = Date.UTC(1800 + _nyi, _nmi, _ndi + 1, _nhi, _nmni * 5);
+  natalMs = Date.UTC(1800 + _nyi, _nmi, _ndi + 1, _nhi, _nmni * 5) - natalTzOffsetHours * 3600000;
   cachedNatalLons = computeLons(natalMs);
   if (showNatal) renderLifeTransits();
   requestRedraw();
@@ -1951,6 +2039,12 @@ _nhi = 0;
 _nmni = 0;
 natalMs = Date.UTC(1800 + _nyi, _nmi, _ndi + 1, _nhi, _nmni * 5);
 syncNatalLabels();
+
+function toggleClock() {
+  showClock = !showClock;
+  document.getElementById('asp-clock').classList.toggle('active', showClock);
+  requestRedraw();
+}
 
 function toggleDegrees() {
   showDegrees = !showDegrees;
