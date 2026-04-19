@@ -152,6 +152,45 @@
     max-width: 1100px;
   }
 
+  #left-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+
+  #right-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+
+  @media (min-width: 1100px) {
+    main {
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 32px;
+      max-width: 1400px;
+      padding: 24px 32px 32px;
+    }
+    #left-col {
+      flex: 0 0 auto;
+      width: 720px;
+    }
+    #right-col {
+      flex: 1;
+      align-items: flex-start;
+      padding-top: 8px;
+      min-width: 320px;
+    }
+    #aspects-bar, #life-transits, #planet-bar {
+      max-width: 100%;
+      width: 100%;
+      justify-content: flex-start;
+    }
+  }
+
   #canvas-wrap {
     position: relative;
     width: min(700px, 96vw);
@@ -355,8 +394,42 @@
     letter-spacing: 0.05em;
     line-height: 1.8;
     font-family: 'Courier New', monospace;
+    width: 100%;
     max-width: 720px;
     margin: 0 auto;
+    box-sizing: border-box;
+  }
+
+  @media (min-width: 1100px) {
+    footer {
+      max-width: 1400px;
+      padding: 28px 32px 36px;
+      text-align: left;
+    }
+  }
+
+  /* ── Transit panels ─────────────────────────────────────────────────────── */
+  .transit-panel { width: 100%; }
+  .transit-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 16px; border: 1px solid var(--border); border-radius: 8px;
+    cursor: pointer; font-family: 'Courier New', monospace; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.1em; color: var(--text); user-select: none;
+  }
+  .transit-arrow { font-size: 10px; transition: transform 0.2s; }
+  .transit-body {
+    display: none; border: 1px solid var(--border); border-top: none;
+    border-radius: 0 0 8px 8px; max-height: 240px; overflow-y: auto;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  .transit-empty {
+    display: none; height: 120px;
+    background-image: repeating-linear-gradient(45deg, var(--border) 0, var(--border) 0.5px, transparent 0, transparent 50%);
+    background-size: 12px 12px; opacity: 0.35;
+  }
+  @media (min-width: 1100px) {
+    .transit-empty { display: block; }
+    .transit-body.has-content .transit-empty { display: none; }
   }
 
 
@@ -459,64 +532,73 @@
     </div>
     <div class="ctrl-group">
       <button class="ctrl-btn" id="natal-toggle" onclick="toggleNatal()" style="border-color:#6a9acc !important;color:#6a9acc !important">Natal</button>
-      <div id="natal-date" style="display:flex;align-items:center;gap:4px;opacity:0.4;pointer-events:none">
-        <div class="csel" id="csel-natal-year" style="border-bottom-color:#3a64a8">
-          <span class="csel-label" id="lbl-natal-year" style="color:#6a9acc">—</span>
-          <div class="csel-dropdown" id="dd-natal-year"></div>
+      <div id="natal-date" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;opacity:0.4;pointer-events:none;justify-content:center">
+        <!-- Date & time row -->
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:nowrap">
+          <div class="csel" id="csel-natal-year" style="border-bottom-color:#3a64a8">
+            <span class="csel-label" id="lbl-natal-year" style="color:#6a9acc">—</span>
+            <div class="csel-dropdown" id="dd-natal-year"></div>
+          </div>
+          <span class="date-sep" style="color:#3a64a8">—</span>
+          <div class="csel" id="csel-natal-month" style="border-bottom-color:#3a64a8">
+            <span class="csel-label" id="lbl-natal-month" style="color:#6a9acc">—</span>
+            <div class="csel-dropdown" id="dd-natal-month"></div>
+          </div>
+          <span class="date-sep" style="color:#3a64a8">—</span>
+          <div class="csel" id="csel-natal-day" style="border-bottom-color:#3a64a8">
+            <span class="csel-label" id="lbl-natal-day" style="color:#6a9acc">—</span>
+            <div class="csel-dropdown" id="dd-natal-day"></div>
+          </div>
+          <span class="date-sep" style="color:#3a64a8;margin-left:4px">—</span>
+          <div class="csel" id="csel-natal-hour" style="border-bottom-color:#3a64a8">
+            <span class="csel-label" id="lbl-natal-hour" style="color:#6a9acc">—</span>
+            <div class="csel-dropdown" id="dd-natal-hour"></div>
+          </div>
+          <span class="date-sep" style="color:#3a64a8">:</span>
+          <div class="csel" id="csel-natal-min" style="border-bottom-color:#3a64a8">
+            <span class="csel-label" id="lbl-natal-min" style="color:#6a9acc">—</span>
+            <div class="csel-dropdown" id="dd-natal-min"></div>
+          </div>
         </div>
-        <span class="date-sep" style="color:#3a64a8">—</span>
-        <div class="csel" id="csel-natal-month" style="border-bottom-color:#3a64a8">
-          <span class="csel-label" id="lbl-natal-month" style="color:#6a9acc">—</span>
-          <div class="csel-dropdown" id="dd-natal-month"></div>
+        <!-- Location row — wraps to new line on small screens -->
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:nowrap">
+          <div class="csel" id="csel-natal-tz" style="border-bottom-color:#3a64a8">
+            <span class="csel-label" id="lbl-natal-tz" style="color:#6a9acc;font-size:12px">London</span>
+            <div class="csel-dropdown" id="dd-natal-tz"></div>
+          </div>
+          <span style="color:#3a64a8;font-size:11px;margin-left:4px;font-family:'Courier New',monospace">or</span>
+          <input id="natal-coords" type="text" placeholder="lat, lon" spellcheck="false"
+            style="background:none;border:none;border-bottom:1px solid #3a64a8;color:#6a9acc;font-family:'Courier New',monospace;font-size:11px;width:100px;outline:none;padding:2px 4px;margin-left:2px;"
+            oninput="parseNatalCoords(this.value)">
         </div>
-        <span class="date-sep" style="color:#3a64a8">—</span>
-        <div class="csel" id="csel-natal-day" style="border-bottom-color:#3a64a8">
-          <span class="csel-label" id="lbl-natal-day" style="color:#6a9acc">—</span>
-          <div class="csel-dropdown" id="dd-natal-day"></div>
-        </div>
-        <span class="date-sep" style="color:#3a64a8;margin-left:4px">—</span>
-        <div class="csel" id="csel-natal-hour" style="border-bottom-color:#3a64a8">
-          <span class="csel-label" id="lbl-natal-hour" style="color:#6a9acc">—</span>
-          <div class="csel-dropdown" id="dd-natal-hour"></div>
-        </div>
-        <span class="date-sep" style="color:#3a64a8">:</span>
-        <div class="csel" id="csel-natal-min" style="border-bottom-color:#3a64a8">
-          <span class="csel-label" id="lbl-natal-min" style="color:#6a9acc">—</span>
-          <div class="csel-dropdown" id="dd-natal-min"></div>
-        </div>
-        <div class="csel" id="csel-natal-tz" style="border-bottom-color:#3a64a8;margin-left:4px">
-          <span class="csel-label" id="lbl-natal-tz" style="color:#6a9acc;font-size:12px">London</span>
-          <div class="csel-dropdown" id="dd-natal-tz"></div>
-        </div>
-        <span style="color:#3a64a8;font-size:11px;margin-left:4px;font-family:'Courier New',monospace">or</span>
-        <input id="natal-coords" type="text" placeholder="lat, lon" spellcheck="false"
-          style="background:none;border:none;border-bottom:1px solid #3a64a8;color:#6a9acc;font-family:'Courier New',monospace;font-size:11px;width:100px;outline:none;padding:2px 4px;margin-left:2px;"
-          oninput="parseNatalCoords(this.value)">
       </div>
     </div>
   </div>
 </header>
 
 <main>
-  <div id="canvas-wrap">
-    <canvas id="wheel"></canvas>
-    <div id="tooltip"></div>
+  <div id="left-col">
+    <div id="canvas-wrap">
+      <canvas id="wheel"></canvas>
+      <div id="tooltip"></div>
+    </div>
+
+    <div id="timeline-wrap">
+      <div id="tl-zoom-btns">
+        <button class="tl-zoom active"  id="tl-days"   onclick="setTlZoom('days')">D</button>
+        <button class="tl-zoom"        id="tl-months" onclick="setTlZoom('months')">M</button>
+        <button class="tl-zoom"        id="tl-years"  onclick="setTlZoom('years')">Y</button>
+      </div>
+      <div id="timeline-track">
+        <canvas id="timeline-canvas" height="40"></canvas>
+        <div id="timeline-needle"></div>
+      </div>
+    </div>
   </div>
 
-  <div id="timeline-wrap">
-    <div id="tl-zoom-btns">
-      <button class="tl-zoom active"  id="tl-days"   onclick="setTlZoom('days')">D</button>
-      <button class="tl-zoom"        id="tl-months" onclick="setTlZoom('months')">M</button>
-      <button class="tl-zoom"        id="tl-years"  onclick="setTlZoom('years')">Y</button>
-    </div>
-    <div id="timeline-track">
-      <canvas id="timeline-canvas" height="40"></canvas>
-      <div id="timeline-needle"></div>
-    </div>
-  </div>
-
-  <div id="aspects-bar">
-    <span class="asp-label">Aspects</span>
+  <div id="right-col">
+    <div id="aspects-bar">
+      <span class="asp-label">Aspects</span>
     <button class="asp-btn active" id="asp-all" onclick="toggleAllAspects()">All</button>
     <button class="asp-btn" id="asp-natal-only" onclick="toggleNatalOnly()" style="--ac:#3a64a8">Natal only</button>
     <button class="asp-btn" id="asp-major-transits" onclick="toggleMajorTransits()" style="--ac:#6aaab0">Major transits</button>
@@ -533,31 +615,37 @@
     <button class="asp-btn active" id="asp-clock" onclick="toggleClock()" style="--ac:#4a7acc">Clock</button>
   </div>
 
-  <div id="life-transits" style="display:none;max-width:640px;width:100%;margin-top:12px;flex-direction:column;gap:8px;">
+  <div id="life-transits" style="display:flex;max-width:640px;width:100%;margin-top:12px;flex-direction:column;gap:8px;opacity:0.3;pointer-events:none;transition:opacity 0.3s;">
 
     <!-- Long range transits -->
-    <div>
-      <div id="life-transits-header" onclick="toggleLifeTransits()" style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Courier New',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text);user-select:none;">
+    <div class="transit-panel">
+      <div class="transit-header" id="life-transits-header" onclick="toggleLifeTransits()">
         <span>Life Transits</span>
-        <span id="life-transits-arrow" style="font-size:10px;transition:transform 0.2s">▼</span>
+        <span id="life-transits-arrow" class="transit-arrow">▼</span>
       </div>
-      <div id="life-transits-body" style="display:none;border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;max-height:240px;overflow-y:scroll;scrollbar-width:thin;scrollbar-color:var(--border) transparent;">
+      <div class="transit-body" id="life-transits-body">
         <div id="life-transits-list" style="display:flex;flex-direction:column;font-family:'Courier New',monospace;"></div>
       </div>
     </div>
 
     <!-- Current transits -->
-    <div>
-      <div id="current-transits-header" onclick="toggleCurrentTransits()" style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:'Courier New',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:var(--text);user-select:none;">
+    <div class="transit-panel">
+      <div class="transit-header" id="current-transits-header" onclick="toggleCurrentTransits()">
         <span>Current Transits</span>
-        <span id="current-transits-arrow" style="font-size:10px;transition:transform 0.2s">▼</span>
+        <span id="current-transits-arrow" class="transit-arrow">▼</span>
       </div>
-      <div id="current-transits-body" style="display:none;border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;max-height:200px;overflow-y:scroll;scrollbar-width:thin;scrollbar-color:var(--border) transparent;">
+      <div class="transit-body" id="current-transits-body">
         <div id="current-transits-list" style="display:flex;flex-direction:column;font-family:'Courier New',monospace;"></div>
       </div>
     </div>
 
+  </div><!-- end life-transits -->
+
+  <!-- Live aspects panels - one per aspect type -->
+  <div id="live-aspects-panels" style="width:100%;max-width:640px;margin-top:12px;display:flex;flex-direction:column;gap:8px;">
   </div>
+
+  </div><!-- end right-col -->
 
 
 
@@ -1853,6 +1941,7 @@ document.getElementById('lbl-tz').textContent = TZ_CITIES.find(c => c.offset ===
 
 let natalLat = null;
 let natalLon = null;
+let natalTzOffsetHours = 0;
 
 function parseNatalCoords(val) {
   const match = val.trim().match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
@@ -2110,12 +2199,130 @@ function toggleNatal() {
   nd.style.opacity = showNatal ? '1' : '0.4';
   nd.style.pointerEvents = showNatal ? 'auto' : 'none';
   if (showNatal) cachedNatalLons = computeLons(natalMs);
-  document.getElementById('life-transits').style.display = showNatal ? 'flex' : 'none';
-  if (showNatal) { renderLifeTransits(); const ctb = document.getElementById("current-transits-body"); if (ctb && ctb.style.display !== "none") renderCurrentTransits(); }
+  const lt = document.getElementById('life-transits');
+  lt.style.opacity = showNatal ? '1' : '0.3';
+  lt.style.pointerEvents = showNatal ? 'auto' : 'none';
+  if (showNatal) { renderLifeTransits(); if (window.innerWidth >= 1100 || document.getElementById("current-transits-body").classList.contains("has-content")) renderCurrentTransits(); }
   requestRedraw();
 }
 
-// ── Life Transits ─────────────────────────────────────────────────────────────
+// ── Live Aspects ──────────────────────────────────────────────────────────────
+let lastLiveAspectsUpdate = 0;
+const liveAspectPanelState = {}; // track open/close per aspect
+
+function updateLiveAspects() {
+  const now = Date.now();
+  if (now - lastLiveAspectsUpdate < 500) return;
+  lastLiveAspectsUpdate = now;
+
+  const container = document.getElementById('live-aspects-panels');
+  if (!container || !cachedLons) return;
+
+  const moonHidden = currentSpeedMult >= 604800;
+
+  for (const asp of ASPECTS) {
+    if (!aspectEnabled[asp.name]) continue;
+    const pairs = [];
+
+    // Transit-to-transit
+    for (let a = 0; a < PLANETS.length; a++) {
+      if (moonHidden && PLANETS[a].name === 'Moon') continue;
+      if (!showChiron && PLANETS[a].name === 'Chiron') continue;
+      for (let b = a + 1; b < PLANETS.length; b++) {
+        if (moonHidden && PLANETS[b].name === 'Moon') continue;
+        if (!showChiron && PLANETS[b].name === 'Chiron') continue;
+        const diff = Math.abs(cachedLons[a] - cachedLons[b]);
+        const d = Math.min(diff, 360 - diff);
+        const dev = Math.abs(d - asp.angle);
+        if (dev < asp.orb) {
+          pairs.push({ a: PLANETS[a].name, b: PLANETS[b].name, dev, fade: 1 - dev/asp.orb, natal: false });
+        }
+      }
+    }
+
+    // Natal-to-transit
+    if (showNatal && cachedNatalLons) {
+      for (let a = 0; a < PLANETS.length; a++) {
+        if (moonHidden && PLANETS[a].name === 'Moon') continue;
+        if (!showChiron && PLANETS[a].name === 'Chiron') continue;
+        for (let b = 0; b < PLANETS.length; b++) {
+          if (!showChiron && PLANETS[b].name === 'Chiron') continue;
+          const diff = Math.abs(cachedLons[a] - cachedNatalLons[b]);
+          const d = Math.min(diff, 360 - diff);
+          const dev = Math.abs(d - asp.angle);
+          const transitOrb = Math.min(asp.orb, 3);
+          if (dev < transitOrb) {
+            pairs.push({ a: PLANETS[a].name, b: PLANETS[b].name, dev, fade: 1 - dev/transitOrb, natal: true });
+          }
+        }
+      }
+    }
+
+    // Natal pairs first, then by tightness; swap natal planet to front
+    pairs.sort((x, y) => {
+      if (x.natal !== y.natal) return x.natal ? -1 : 1;
+      return x.dev - y.dev;
+    });
+    // For natal pairs, swap so natal planet (b) comes first
+    for (const p of pairs) {
+      if (p.natal) { const tmp = p.a; p.a = p.b; p.b = tmp; }
+    }
+
+    // Create or update panel for this aspect
+    let panel = document.getElementById(`lap-${asp.name}`);
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.className = 'transit-panel';
+      panel.id = `lap-${asp.name}`;
+      panel.innerHTML = `
+        <div class="transit-header" onclick="toggleLiveAspect('${asp.name}')" style="border-color:${asp.col}33">
+          <span style="color:${asp.col}">${asp.name}</span>
+          <span id="lap-arrow-${asp.name}" class="transit-arrow">▼</span>
+        </div>
+        <div class="transit-body" id="lap-body-${asp.name}">
+          <div id="lap-list-${asp.name}" style="font-family:'Courier New',monospace;"></div>
+        </div>`;
+      container.appendChild(panel);
+      liveAspectPanelState[asp.name] = false;
+    }
+
+    const body = document.getElementById(`lap-body-${asp.name}`);
+    const list = document.getElementById(`lap-list-${asp.name}`);
+    const header = panel.querySelector('.transit-header');
+
+    if (!pairs.length) {
+      panel.style.opacity = '1';
+      panel.style.pointerEvents = 'auto';
+      list.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:5px 16px">No active aspects</div>';
+    } else {
+      panel.style.opacity = '1';
+      panel.style.pointerEvents = 'auto';
+      let html = '';
+      for (const p of pairs) {
+        const alpha = (0.4 + p.fade * 0.6).toFixed(2);
+        const sep = p.natal
+          ? `<span style="color:#3a64a8;font-size:11px"> → </span>`
+          : `<span style="color:var(--muted);font-size:11px"> — </span>`;
+        const aCol = p.natal ? '#6a9acc' : 'var(--text)'; // natal planet first = blue
+        const bCol = 'var(--text)';                        // transiting planet = white
+        const devCol = p.natal ? '#3a64a8' : 'var(--muted)';
+        html += `<div style="display:flex;gap:8px;align-items:baseline;opacity:${alpha};padding:5px 16px;border-bottom:1px solid var(--border)">`;
+        html += `<span style="flex:1;font-size:12px"><span style="color:${aCol}">${p.a}</span>${sep}<span style="color:${bCol}">${p.b}</span></span>`;
+        html += `<span style="color:${devCol};font-size:10px">${p.dev.toFixed(1)}°</span>`;
+        html += `</div>`;
+      }
+      list.innerHTML = html;
+    }
+  }
+}
+
+function toggleLiveAspect(name) {
+  const body = document.getElementById(`lap-body-${name}`);
+  const arrow = document.getElementById(`lap-arrow-${name}`);
+  liveAspectPanelState[name] = !liveAspectPanelState[name];
+  body.style.display = liveAspectPanelState[name] ? 'block' : 'none';
+  arrow.style.transform = liveAspectPanelState[name] ? 'rotate(180deg)' : '';
+}
 const LIFE_TRANSITS = [
   { planet:'Saturn',  aspect:'Conjunction', angle:0,   label:'Saturn Return',        desc:'~age 29, 58, 88 — major life restructuring' },
   { planet:'Saturn',  aspect:'Opposition',  angle:180, label:'Saturn Opposition',     desc:'~age 14-15, 44-45 — challenge to structure' },
@@ -2167,7 +2374,7 @@ function findTransitDates(natalLon, transitPlanet, aspectAngle) {
 function toggleCurrentTransits() {
   const body = document.getElementById('current-transits-body');
   const arrow = document.getElementById('current-transits-arrow');
-  const open = body.style.display === 'none';
+  const open = body.style.display === 'none' || body.style.display === '';
   body.style.display = open ? 'block' : 'none';
   arrow.style.transform = open ? 'rotate(180deg)' : '';
   if (open) renderCurrentTransits();
@@ -2186,90 +2393,89 @@ const CURRENT_WINDOW = 10 * 86400000; // 10 days either side
 
 function renderCurrentTransits() {
   const list = document.getElementById('current-transits-list');
-  list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:7px 16px">Calculating…</div>';
+  if (!list || !cachedNatalLons) return;
 
-  setTimeout(() => {
-    const now = Date.now();
-    const events = [];
+  const now = simMs;
+  const events = [];
 
-    for (const pName of CURRENT_TRANSIT_PLANETS) {
-      const pIdx = PLANETS.findIndex(p => p.name === pName);
-      if (pIdx < 0) continue;
-      const orb = CURRENT_ORBS[pName] || 3;
+  for (const pName of CURRENT_TRANSIT_PLANETS) {
+    const pIdx = PLANETS.findIndex(p => p.name === pName);
+    if (pIdx < 0) continue;
 
-      for (let ni = 0; ni < PLANETS.length; ni++) {
-        const natalLon = cachedNatalLons[ni];
-        const natalName = PLANETS[ni].name;
+    for (let ni = 0; ni < PLANETS.length; ni++) {
+      const natalLon = cachedNatalLons[ni];
+      const natalName = PLANETS[ni].name;
 
-        for (const asp of CURRENT_TRANSIT_ASPECTS) {
-          // Scan ±window in 1-day steps
-          const step = 86400000;
-          let prevDiff = null;
-          for (let t = now - CURRENT_WINDOW; t < now + CURRENT_WINDOW; t += step) {
-            const lons = computeLons(t);
-            const lon = lons[pIdx];
-            let diff = ((lon - natalLon - asp.angle) % 360 + 360) % 360;
-            if (diff > 180) diff -= 360;
-            if (prevDiff !== null && prevDiff * diff < 0 && Math.abs(prevDiff - diff) < 90) {
-              // Refine
-              let lo = t - step, hi = t;
-              for (let iter = 0; iter < 16; iter++) {
-                const mid = (lo + hi) / 2;
-                const midLons = computeLons(mid);
-                let midDiff = ((midLons[pIdx] - natalLon - asp.angle) % 360 + 360) % 360;
-                if (midDiff > 180) midDiff -= 360;
-                if (midDiff * diff < 0) lo = mid; else hi = mid;
-              }
-              const exactMs = Math.round((lo + hi) / 2);
-              events.push({ ms: exactMs, transit: pName, natal: natalName, asp: asp.name, col: asp.col, past: exactMs < now });
+      for (const asp of CURRENT_TRANSIT_ASPECTS) {
+        const step = 86400000;
+        let prevDiff = null;
+        for (let t = now - CURRENT_WINDOW; t < now + CURRENT_WINDOW; t += step) {
+          const lons = computeLons(t);
+          const lon = lons[pIdx];
+          let diff = ((lon - natalLon - asp.angle) % 360 + 360) % 360;
+          if (diff > 180) diff -= 360;
+          if (prevDiff !== null && prevDiff * diff < 0 && Math.abs(prevDiff - diff) < 90) {
+            let lo = t - step, hi = t;
+            for (let iter = 0; iter < 16; iter++) {
+              const mid = (lo + hi) / 2;
+              const midLons = computeLons(mid);
+              let midDiff = ((midLons[pIdx] - natalLon - asp.angle) % 360 + 360) % 360;
+              if (midDiff > 180) midDiff -= 360;
+              if (midDiff * diff < 0) lo = mid; else hi = mid;
             }
-            prevDiff = diff;
+            const exactMs = Math.round((lo + hi) / 2);
+            events.push({ ms: exactMs, transit: pName, natal: natalName, asp: asp.name, col: asp.col, past: exactMs < now });
           }
+          prevDiff = diff;
         }
       }
     }
+  }
 
-    events.sort((a, b) => Math.abs(a.ms - now) - Math.abs(b.ms - now));
+  events.sort((a, b) => Math.abs(a.ms - now) - Math.abs(b.ms - now));
+  document.getElementById('current-transits-body').classList.add('has-content');
 
-    list.innerHTML = '';
-    if (!events.length) {
-      list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:7px 16px">No exact transits in the next 30 days</div>';
-      return;
-    }
+  if (!events.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:7px 16px">No exact transits in this window</div>';
+    return;
+  }
 
-    for (const ev of events) {
-      const d = new Date(ev.ms);
-      const dateStr = `${d.getUTCDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()]}`;
-      const daysAway = Math.round((ev.ms - now) / 86400000);
-      const daysLabel = daysAway === 0 ? 'today' : daysAway > 0 ? `+${daysAway}d` : `${daysAway}d`;
-      const isNear = Math.abs(daysAway) <= 3;
+  // Build new HTML and only update if changed, to avoid flicker
+  let html = '';
+  for (const ev of events) {
+    const d = new Date(ev.ms);
+    const dateStr = `${d.getUTCDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getUTCMonth()]}`;
+    const daysAway = Math.round((ev.ms - now) / 86400000);
+    const daysLabel = daysAway === 0 ? 'today' : daysAway > 0 ? `+${daysAway}d` : `${daysAway}d`;
+    const isNear = Math.abs(daysAway) <= 3;
+    html += `<div class="ct-row" data-ms="${ev.ms}" style="display:flex;align-items:baseline;gap:8px;cursor:pointer;opacity:${ev.past ? '0.45' : '1'};padding:6px 16px;border-bottom:1px solid var(--border);">`;
+    html += `<span style="color:${isNear ? '#c8941a' : 'var(--text)'};font-size:12px;min-width:52px">${dateStr}</span>`;
+    html += `<span style="color:var(--muted);font-size:11px;min-width:30px">${daysLabel}</span>`;
+    html += `<span style="color:${ev.col};font-size:12px">${ev.transit}</span>`;
+    html += `<span style="color:var(--muted);font-size:11px">${ev.asp}</span>`;
+    html += `<span style="color:#6a9acc;font-size:12px">${ev.natal}</span>`;
+    html += `</div>`;
+  }
 
-      const row = document.createElement('div');
-      row.style.cssText = `display:flex;align-items:baseline;gap:8px;cursor:pointer;opacity:${ev.past ? '0.45' : '1'};padding:6px 16px;border-bottom:1px solid var(--border);transition:background 0.1s;`;
-      row.innerHTML = `
-        <span style="color:${isNear ? '#c8941a' : 'var(--text)'};font-size:12px;min-width:52px">${dateStr}</span>
-        <span style="color:var(--muted);font-size:11px;min-width:30px">${daysLabel}</span>
-        <span style="color:${ev.col};font-size:12px">${ev.transit}</span>
-        <span style="color:var(--muted);font-size:11px">${ev.asp}</span>
-        <span style="color:var(--text);font-size:12px">${ev.natal}</span>
-      `;
-      row.addEventListener('mouseenter', () => row.style.background = 'var(--bg2)');
-      row.addEventListener('mouseleave', () => row.style.background = '');
+  if (list.innerHTML !== html) {
+    list.innerHTML = html;
+    list.querySelectorAll('.ct-row').forEach(row => {
+      const ms = parseInt(row.dataset.ms);
       row.addEventListener('click', () => {
-        simMs = ev.ms;
-        lastRealMs = Date.now();
-        if (!paused) { paused = true; document.getElementById('pause-btn').textContent = '▶'; }
+        simMs = ms; lastRealMs = Date.now();
+        if (!paused) { paused = true; document.getElementById('pause-btn').textContent = 'PLAY'; }
         requestRedraw();
       });
-      list.appendChild(row);
-    }
-  }, 50);
+      row.addEventListener('mouseenter', () => row.style.background = 'var(--bg2)');
+      row.addEventListener('mouseleave', () => row.style.background = '');
+    });
+  }
 }
 
 function toggleLifeTransits() {
   const body = document.getElementById('life-transits-body');
   const arrow = document.getElementById('life-transits-arrow');
-  const open = body.style.display === 'none';
+  const open = body.style.display === 'none' || body.style.display === '';
   body.style.display = open ? 'block' : 'none';
   arrow.style.transform = open ? 'rotate(180deg)' : '';
 }
@@ -2358,6 +2564,13 @@ function loop() {
     cachedLons = computeLons(simMs);
     if (showNatal) cachedNatalLons = computeLons(natalMs);
     updateSignGlow(cachedLons);
+    updateLiveAspects();
+    // Refresh current transits if open, throttled to 1/sec
+    const ctb = document.getElementById('current-transits-body');
+    if (ctb && ctb.style.display === 'block') {
+      const elapsed = now - (ctb._lastRefresh || 0);
+      if (elapsed > 1000) { ctb._lastRefresh = now; renderCurrentTransits(); }
+    }
     lastLonCalcMs = now;
     lastSimMsForLons = simMs;
   }
